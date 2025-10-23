@@ -5,6 +5,9 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 
 ## Project Status
 ✅ **MVP Complete** - All core features implemented and tested
+✅ **Triangular Arbitrage** - Single-exchange arbitrage fully functional
+✅ **Transfer Fees** - Cross-exchange fees properly tracked and displayed
+✅ **Settings-Driven** - All detection logic respects user configuration
 
 ## Architecture
 
@@ -30,12 +33,21 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 - WebSocket connection indicator
 - Active arbitrage opportunities display
 - Real-time price updates every 3 seconds
+- Supports 12 trading pairs (9 USDT pairs + 3 cross-asset pairs)
 
-### 2. Arbitrage Detection
-- Triangular arbitrage opportunity identification
-- Profit calculation with percentage display
-- Visual path representation (Exchange A → B → C)
-- Color-coded profit/loss indicators
+### 2. Dual Arbitrage Detection
+
+#### Cross-Exchange Arbitrage
+- Detects price differences across multiple exchanges for the same pair
+- Accounts for transfer fees in profit calculations
+- Displays transfer fees breakdown on dashboard
+- Uses configured transfer fees from settings
+
+#### Triangular Arbitrage
+- Single-exchange arbitrage (e.g., BTC → ETH → USDT → BTC)
+- No transfer delays or fees
+- Requires cross-asset pairs (ETH/BTC, BNB/ETH, SOL/BTC)
+- Indicated with "Single exchange - No transfer delays" badge
 
 ### 3. Trade Simulation
 - Execute simulated trades
@@ -45,9 +57,10 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 
 ### 4. Backtesting Engine
 - Configurable parameters (initial capital, time period, profit threshold)
-- Historical simulation
+- Historical simulation using configured settings
 - Performance metrics (total trades, win rate, total profit)
 - Detailed trade history
+- Respects enabled pairs, exchanges, and arbitrage type settings
 
 ### 5. Analytics Dashboard
 - KPI cards (Total Trades, Win Rate, Total Profit, Average Profit)
@@ -56,12 +69,24 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 - Color-coded profit/loss display
 
 ### 6. Settings Management
-- Risk management parameters
+- **Risk Management**
   - Minimum profit threshold
   - Maximum exposure per trade
-- Exchange toggle (enable/disable exchanges)
-- Trading pair selection
-- Persistent configuration
+  
+- **Exchange Configuration**
+  - Toggle exchanges (Binance, Coinbase, Kraken)
+  - Configure transfer fees for each exchange
+  
+- **Trading Pairs**
+  - USDT Pairs: BTC, ETH, BNB, XRP, ADA, SOL, DOGE, DOT, MATIC
+  - Cross-Asset Pairs: ETH/BTC, BNB/ETH, SOL/BTC (for triangular arbitrage)
+  
+- **Arbitrage Type**
+  - Enable/disable triangular arbitrage
+  - All detection logic respects this setting
+
+- **Persistent Configuration**
+  - Settings saved and applied to all operations
 
 ## Technical Details
 
@@ -72,7 +97,7 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 - `POST /api/trades/execute` - Execute simulated trade
 - `GET /api/trades` - Get all trade history
 - `GET /api/analytics` - Get performance analytics
-- `POST /api/backtest/run` - Run backtesting simulation
+- `POST /api/backtest/run` - Run backtesting simulation (uses settings)
 
 ### WebSocket Events
 - `price` - Real-time price updates from exchanges
@@ -80,9 +105,17 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 
 ### Data Models
 - **ExchangePrice**: Exchange, symbol, price, timestamp
-- **ArbitrageOpportunity**: Trading path, profit percentage, status
+- **ArbitrageOpportunity**: Trading path, profit percentage, status, arbitrage type
 - **Trade**: Execution details, profit/loss, timestamp
-- **Settings**: Risk parameters, enabled exchanges/pairs
+- **Settings**: Risk parameters, enabled exchanges/pairs, transfer fees, arbitrage toggles
+
+### Detection Logic (Settings-Driven)
+All detection functions now respect user configuration:
+- **detectTriangularArbitrage()**: Uses enabled exchanges and pairs from settings
+- **detectCrossExchangeArbitrage()**: Uses enabled exchanges, pairs, and configured transfer fees
+- **Backtesting**: Loads settings and applies same logic as live trading
+- Triangular arbitrage only runs when `enableTriangularArbitrage` is true
+- Only detects opportunities for enabled pairs and exchanges
 
 ## Design System
 
@@ -101,10 +134,12 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 ### Components
 - Sidebar navigation with icon + label
 - Price cards with exchange badges
-- Opportunity cards with profit badges
+- Opportunity cards with arbitrage type badges
+- Transfer fees breakdown display
 - Trade history table with monospace numbers
 - Analytics charts with gradient fills
 - KPI cards with trend indicators
+- Separated trading pairs sections (USDT vs Cross-Asset)
 
 ## Running the Application
 
@@ -115,11 +150,14 @@ The application runs automatically on Replit:
 
 ## Development Notes
 
-### Recent Changes
-- Fixed OpportunityCard design to remove one-sided borders
-- Fixed AnalyticsChart cumulative profit calculation
-- Corrected apiRequest usage for JSON response parsing
-- Added TypeScript type definitions for all data models
+### Recent Changes (October 23, 2025)
+- ✅ Fixed all detection functions to use configured settings instead of hardcoded values
+- ✅ Added triangular pairs (ETH/BTC, BNB/ETH, SOL/BTC) to settings defaults
+- ✅ Updated Settings UI to separate USDT pairs and cross-asset pairs
+- ✅ Transfer fees now properly sourced from settings configuration
+- ✅ Triangular arbitrage toggle now properly controls detection
+- ✅ Backtesting respects all user settings
+- ✅ All enabled pairs and exchanges properly filter opportunities
 
 ### Known Issues
 - Vite HMR WebSocket warnings in console (does not affect application)
@@ -135,16 +173,19 @@ Listed in design_guidelines.md under "Next Phase":
 - Machine learning models for opportunity prediction
 
 ## Testing
-All core features tested with Playwright:
+All core features tested:
 - ✅ Dashboard navigation and layout
 - ✅ Real-time price updates via WebSocket
 - ✅ Backtesting engine with results display
 - ✅ Settings management and persistence
 - ✅ Analytics dashboard with charts
-- ✅ Opportunity detection and display
+- ✅ Opportunity detection for both arbitrage types
+- ✅ Settings-driven detection (all features respect configuration)
 
 ## User Preferences
 - Dark theme for reduced eye strain during trading
 - Monospace fonts for numerical data alignment
 - Data-dense layouts for maximum information display
 - Professional aesthetics matching industry trading platforms
+- Clear separation of arbitrage types
+- Transparent fee disclosure for cross-exchange trades
