@@ -77,6 +77,7 @@ export type InsertTrade = z.infer<typeof insertTradeSchema>;
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 
 export type PriceUpdate = {
+  type: "price";
   exchange: string;
   symbol: string;
   price: number;
@@ -84,6 +85,7 @@ export type PriceUpdate = {
 };
 
 export type OpportunityUpdate = {
+  type: "opportunity";
   id: string;
   path: ArbitragePath;
   profitPercent: number;

@@ -51,9 +51,13 @@ export class MemStorage implements IStorage {
   }
 
   async updateSettings(insertSettings: InsertSettings): Promise<Settings> {
+    const id = this.settings?.id || randomUUID();
     this.settings = {
-      id: this.settings?.id || randomUUID(),
-      ...insertSettings,
+      id,
+      minProfitPercent: insertSettings.minProfitPercent || "0.5",
+      maxExposurePerTrade: insertSettings.maxExposurePerTrade || "1000",
+      enabledExchanges: insertSettings.enabledExchanges || ["binance", "coinbase", "kraken"],
+      enabledPairs: insertSettings.enabledPairs || ["BTC/USDT", "ETH/USDT", "BNB/USDT"],
       updatedAt: new Date(),
     };
     return this.settings;
@@ -80,7 +84,9 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const opportunity: ArbitrageOpportunity = {
       id,
-      ...insertOpp,
+      path: insertOpp.path,
+      profitPercent: insertOpp.profitPercent,
+      status: insertOpp.status || "active",
       timestamp: new Date(),
     };
     this.opportunities.set(id, opportunity);
@@ -98,7 +104,13 @@ export class MemStorage implements IStorage {
     const id = randomUUID();
     const trade: Trade = {
       id,
-      ...insertTrade,
+      opportunityId: insertTrade.opportunityId,
+      path: insertTrade.path,
+      initialAmount: insertTrade.initialAmount,
+      finalAmount: insertTrade.finalAmount,
+      profitPercent: insertTrade.profitPercent,
+      profitAmount: insertTrade.profitAmount,
+      status: insertTrade.status || "simulated",
       timestamp: new Date(),
     };
     this.trades.set(id, trade);
