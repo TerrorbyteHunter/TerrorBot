@@ -13,6 +13,7 @@ export const exchangePrices = pgTable("exchange_prices", {
 
 export const arbitrageOpportunities = pgTable("arbitrage_opportunities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  arbitrageType: text("arbitrage_type").notNull().default("cross-exchange"),
   path: jsonb("path").notNull().$type<ArbitragePath>(),
   profitPercent: decimal("profit_percent", { precision: 10, scale: 4 }).notNull(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
@@ -70,16 +71,20 @@ export const settings = pgTable("settings", {
   minProfitPercent: decimal("min_profit_percent", { precision: 10, scale: 4 }).notNull().default("0.5"),
   maxExposurePerTrade: decimal("max_exposure_per_trade", { precision: 20, scale: 8 }).notNull().default("1000"),
   enabledExchanges: jsonb("enabled_exchanges").notNull().$type<string[]>().default(sql`'["binance", "coinbase", "kraken"]'::jsonb`),
-  enabledPairs: jsonb("enabled_pairs").notNull().$type<string[]>().default(sql`'["BTC/USDT", "ETH/USDT", "BNB/USDT"]'::jsonb`),
+  enabledPairs: jsonb("enabled_pairs").notNull().$type<string[]>().default(sql`'["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT", "ETH/BTC", "BNB/ETH", "SOL/BTC"]'::jsonb`),
+  transferFees: jsonb("transfer_fees").notNull().$type<Record<string, number>>().default(sql`'{"binance": 0.1, "coinbase": 0.15, "kraken": 0.12}'::jsonb`),
+  enableTriangularArbitrage: boolean("enable_triangular_arbitrage").notNull().default(true),
   autoTradeEnabled: boolean("auto_trade_enabled").notNull().default(false),
   notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export type ArbitragePath = {
+  type: "cross-exchange" | "triangular";
   exchanges: string[];
   pairs: string[];
   prices: number[];
+  transferFees?: number[];
 };
 
 export type ExecutionDetails = {

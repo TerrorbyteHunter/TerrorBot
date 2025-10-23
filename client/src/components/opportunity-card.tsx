@@ -20,6 +20,8 @@ export function OpportunityCard({
   onExecute,
 }: OpportunityCardProps) {
   const isProfitable = profitPercent > 0;
+  const isTriangular = path.type === "triangular";
+  const totalTransferFees = path.transferFees?.reduce((a, b) => a + b, 0) || 0;
 
   return (
     <Card
@@ -28,7 +30,9 @@ export function OpportunityCard({
       <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-3">
         <div className="flex items-center gap-2">
           <TrendingUp className={`h-4 w-4 ${isProfitable ? "text-chart-1" : "text-chart-2"}`} />
-          <span className="text-sm font-medium">Triangular Arbitrage</span>
+          <span className="text-sm font-medium">
+            {isTriangular ? "Triangular Arbitrage" : "Cross-Exchange Arbitrage"}
+          </span>
         </div>
         <Badge
           variant={isProfitable ? "default" : "secondary"}
@@ -57,8 +61,22 @@ export function OpportunityCard({
             </div>
           ))}
         </div>
-        <div className="text-xs text-muted-foreground">
-          Detected at {new Date(timestamp).toLocaleTimeString()}
+        <div className="flex flex-col gap-1">
+          <div className="text-xs text-muted-foreground">
+            Detected at {new Date(timestamp).toLocaleTimeString()}
+          </div>
+          {!isTriangular && totalTransferFees > 0 && (
+            <div className="text-xs text-muted-foreground">
+              Transfer fees: {totalTransferFees.toFixed(2)}% ({path.transferFees?.map((fee, idx) => 
+                `${path.exchanges[idx]}: ${fee.toFixed(2)}%`
+              ).join(", ")})
+            </div>
+          )}
+          {isTriangular && (
+            <div className="text-xs text-muted-foreground">
+              Single exchange - No transfer delays
+            </div>
+          )}
         </div>
       </CardContent>
       <CardFooter>

@@ -10,29 +10,113 @@ function generateMockPrice(base: number, volatility: number = 0.01): number {
   return base * (1 + (Math.random() - 0.5) * volatility);
 }
 
-function detectArbitrageOpportunity() {
-  const exchanges = ["binance", "coinbase", "kraken"];
+function detectTriangularArbitrage(enabledExchanges: string[], enabledPairs: string[]) {
+  if (enabledExchanges.length === 0) return null;
+  
+  const exchange = enabledExchanges[Math.floor(Math.random() * enabledExchanges.length)];
+  
   const basePrices = {
     "BTC/USDT": 45000,
     "ETH/USDT": 2500,
     "BNB/USDT": 350,
+    "XRP/USDT": 0.55,
+    "ADA/USDT": 0.45,
+    "SOL/USDT": 95,
+    "DOGE/USDT": 0.08,
+    "DOT/USDT": 6.5,
+    "MATIC/USDT": 0.85,
   };
 
-  const pair = Object.keys(basePrices)[Math.floor(Math.random() * Object.keys(basePrices).length)] as keyof typeof basePrices;
-  const selectedExchanges = exchanges.sort(() => Math.random() - 0.5).slice(0, 3);
+  const triangularPairs = [
+    { pairs: ["BTC/USDT", "ETH/BTC", "ETH/USDT"], base: ["BTC", "ETH", "USDT"] },
+    { pairs: ["ETH/USDT", "BNB/ETH", "BNB/USDT"], base: ["ETH", "BNB", "USDT"] },
+    { pairs: ["BTC/USDT", "SOL/BTC", "SOL/USDT"], base: ["BTC", "SOL", "USDT"] },
+  ];
+
+  const availableTriangularPairs = triangularPairs.filter(tp =>
+    tp.pairs.every(pair => enabledPairs.includes(pair))
+  );
+
+  if (availableTriangularPairs.length === 0) return null;
+
+  const selected = availableTriangularPairs[Math.floor(Math.random() * availableTriangularPairs.length)];
+  
+  const btcPrice = generateMockPrice(basePrices["BTC/USDT"], 0.01);
+  const ethPrice = generateMockPrice(basePrices["ETH/USDT"], 0.01);
+  const bnbPrice = generateMockPrice(basePrices["BNB/USDT"], 0.01);
+  const solPrice = generateMockPrice(basePrices["SOL/USDT"], 0.01);
+  
+  let prices: number[] = [];
+  if (selected.pairs.includes("ETH/BTC")) {
+    prices = [btcPrice, ethPrice / btcPrice * (1 + (Math.random() - 0.5) * 0.01), ethPrice];
+  } else if (selected.pairs.includes("BNB/ETH")) {
+    prices = [ethPrice, bnbPrice / ethPrice * (1 + (Math.random() - 0.5) * 0.01), bnbPrice];
+  } else {
+    prices = [btcPrice, solPrice / btcPrice * (1 + (Math.random() - 0.5) * 0.01), solPrice];
+  }
+
+  let amount = 1000;
+  amount = amount / prices[0];
+  amount = amount / prices[1];
+  amount = amount * prices[2];
+  
+  const profitPercent = ((amount - 1000) / 1000) * 100;
+
+  if (Math.abs(profitPercent) > 0.2) {
+    return {
+      arbitrageType: "triangular" as const,
+      path: {
+        type: "triangular" as const,
+        exchanges: [exchange, exchange, exchange],
+        pairs: selected.pairs,
+        prices: prices,
+      },
+      profitPercent: profitPercent,
+    };
+  }
+
+  return null;
+}
+
+function detectCrossExchangeArbitrage(enabledExchanges: string[], enabledPairs: string[], transferFeesConfig: Record<string, number>) {
+  if (enabledExchanges.length < 2 || enabledPairs.length === 0) return null;
+  
+  const basePrices = {
+    "BTC/USDT": 45000,
+    "ETH/USDT": 2500,
+    "BNB/USDT": 350,
+    "XRP/USDT": 0.55,
+    "ADA/USDT": 0.45,
+    "SOL/USDT": 95,
+    "DOGE/USDT": 0.08,
+    "DOT/USDT": 6.5,
+    "MATIC/USDT": 0.85,
+  };
+
+  const availablePairs = Object.keys(basePrices).filter(pair => enabledPairs.includes(pair));
+  if (availablePairs.length === 0) return null;
+
+  const pair = availablePairs[Math.floor(Math.random() * availablePairs.length)] as keyof typeof basePrices;
+  const selectedExchanges = enabledExchanges.sort(() => Math.random() - 0.5).slice(0, Math.min(3, enabledExchanges.length));
   
   const prices = selectedExchanges.map(() => generateMockPrice(basePrices[pair], 0.02));
   
+  const transferFees = selectedExchanges.map(exchange => transferFeesConfig[exchange] || 0.1);
+  
   const initialPrice = prices[0];
   const finalPrice = prices[prices.length - 1];
-  const profitPercent = ((finalPrice - initialPrice) / initialPrice) * 100;
+  const totalTransferFees = transferFees.reduce((a, b) => a + b, 0);
+  const profitPercent = ((finalPrice - initialPrice) / initialPrice) * 100 - totalTransferFees;
 
   if (Math.abs(profitPercent) > 0.3) {
     return {
+      arbitrageType: "cross-exchange" as const,
       path: {
+        type: "cross-exchange" as const,
         exchanges: selectedExchanges,
         pairs: selectedExchanges.map(() => pair),
         prices: prices,
+        transferFees: transferFees,
       },
       profitPercent: profitPercent,
     };
@@ -92,7 +176,7 @@ async function executeTradeWithFallback(opportunityId: string | null, path: any,
     }
   }
 
-  const allStepsSucceeded = executionDetails.steps.every(step => step.status === "completed");
+  const allStepsSucceeded = executionDetails.steps.every((step: any) => step.status === "completed");
   const profitAmount = allStepsSucceeded ? (initialAmount * parseFloat(profitPercent)) / 100 : 0;
   const finalAmount = initialAmount + profitAmount;
 
@@ -213,11 +297,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { initialCapital, days, minProfit } = req.body;
       
+      const settings = await storage.getSettings();
+      if (!settings) {
+        res.status(500).json({ error: "Settings not available" });
+        return;
+      }
+
+      const enableTriangular = settings.enableTriangularArbitrage ?? true;
+      const enabledExchanges = settings.enabledExchanges;
+      const enabledPairs = settings.enabledPairs;
+      const transferFeesConfig = settings.transferFees as Record<string, number>;
+      
       const simulatedTrades = [];
       const numTrades = Math.floor(days * 5);
 
       for (let i = 0; i < numTrades; i++) {
-        const opportunity = detectArbitrageOpportunity();
+        let opportunity = null;
+        
+        if (enableTriangular && Math.random() > 0.5) {
+          opportunity = detectTriangularArbitrage(enabledExchanges, enabledPairs);
+        } else {
+          opportunity = detectCrossExchangeArbitrage(enabledExchanges, enabledPairs, transferFeesConfig);
+        }
         
         if (opportunity && Math.abs(opportunity.profitPercent) >= parseFloat(minProfit)) {
           const tradeAmount = Math.min(parseFloat(initialCapital) * 0.1, 1000);
@@ -324,7 +425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const currencies = ["USDT", "BTC", "ETH", "BNB"];
           for (const currency of currencies) {
             const balance = (Math.random() * 10000).toFixed(2);
-            const locked = (Math.random() * balance).toFixed(2);
+            const locked = (Math.random() * parseFloat(balance)).toFixed(2);
             const available = (parseFloat(balance) - parseFloat(locked)).toFixed(2);
 
             const wallet = await storage.addWallet({
@@ -382,14 +483,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const exchanges = ["binance", "coinbase", "kraken"];
-  const pairs = ["BTC/USDT", "ETH/USDT", "BNB/USDT"];
+  const pairs = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT"];
   const basePrices: Record<string, number> = {
     "BTC/USDT": 45000,
     "ETH/USDT": 2500,
     "BNB/USDT": 350,
+    "XRP/USDT": 0.55,
+    "ADA/USDT": 0.45,
+    "SOL/USDT": 95,
+    "DOGE/USDT": 0.08,
+    "DOT/USDT": 6.5,
+    "MATIC/USDT": 0.85,
   };
 
-  setInterval(() => {
+  setInterval(async () => {
     exchanges.forEach(exchange => {
       pairs.forEach(symbol => {
         const price = generateMockPrice(basePrices[symbol], 0.005);
@@ -413,33 +520,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
 
     if (Math.random() > 0.7) {
-      const opportunity = detectArbitrageOpportunity();
+      const settings = await storage.getSettings();
+      if (!settings) return;
+      
+      const enableTriangular = settings.enableTriangularArbitrage ?? true;
+      const enabledExchanges = settings.enabledExchanges;
+      const enabledPairs = settings.enabledPairs;
+      const transferFeesConfig = settings.transferFees as Record<string, number>;
+      
+      let opportunity = null;
+      
+      if (enableTriangular && Math.random() > 0.5) {
+        opportunity = detectTriangularArbitrage(enabledExchanges, enabledPairs);
+      } else {
+        opportunity = detectCrossExchangeArbitrage(enabledExchanges, enabledPairs, transferFeesConfig);
+      }
+      
       if (opportunity) {
-        storage.addArbitrageOpportunity({
+        const opp = await storage.addArbitrageOpportunity({
+          arbitrageType: opportunity.arbitrageType,
           path: opportunity.path,
           profitPercent: opportunity.profitPercent.toString(),
           status: "active",
-        }).then(async (opp) => {
-          const oppUpdate: OpportunityUpdate = {
-            type: "opportunity",
-            id: opp.id,
-            path: opp.path,
-            profitPercent: parseFloat(opp.profitPercent),
-            timestamp: new Date(opp.timestamp).getTime(),
-          };
-          broadcastToClients(oppUpdate);
-
-          const settings = await storage.getSettings();
-          if (settings?.autoTradeEnabled && parseFloat(opp.profitPercent) >= parseFloat(settings.minProfitPercent)) {
-            const maxExposure = parseFloat(settings.maxExposurePerTrade as any);
-            await executeTradeWithFallback(
-              opp.id,
-              opp.path,
-              opp.profitPercent,
-              maxExposure
-            );
-          }
         });
+        
+        const oppUpdate: OpportunityUpdate = {
+          type: "opportunity",
+          id: opp.id,
+          path: opp.path,
+          profitPercent: parseFloat(opp.profitPercent),
+          timestamp: new Date(opp.timestamp).getTime(),
+        };
+        broadcastToClients(oppUpdate);
+
+        if (settings.autoTradeEnabled && parseFloat(opp.profitPercent) >= parseFloat(settings.minProfitPercent)) {
+          const maxExposure = parseFloat(settings.maxExposurePerTrade as any);
+          await executeTradeWithFallback(
+            opp.id,
+            opp.path,
+            opp.profitPercent,
+            maxExposure
+          );
+        }
       }
     }
   }, 3000);

@@ -69,7 +69,9 @@ export class MemStorage implements IStorage {
       minProfitPercent: "0.5",
       maxExposurePerTrade: "1000",
       enabledExchanges: ["binance", "coinbase", "kraken"],
-      enabledPairs: ["BTC/USDT", "ETH/USDT", "BNB/USDT"],
+      enabledPairs: ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT", "ETH/BTC", "BNB/ETH", "SOL/BTC"],
+      transferFees: { binance: 0.1, coinbase: 0.15, kraken: 0.12 },
+      enableTriangularArbitrage: true,
       autoTradeEnabled: false,
       notificationsEnabled: true,
       updatedAt: new Date(),
@@ -83,13 +85,16 @@ export class MemStorage implements IStorage {
   async updateSettings(insertSettings: InsertSettings): Promise<Settings> {
     const id = this.settings?.id || randomUUID();
     const enabledExchanges: string[] = (insertSettings.enabledExchanges as string[]) || ["binance", "coinbase", "kraken"];
-    const enabledPairs: string[] = (insertSettings.enabledPairs as string[]) || ["BTC/USDT", "ETH/USDT", "BNB/USDT"];
+    const enabledPairs: string[] = (insertSettings.enabledPairs as string[]) || ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT", "ETH/BTC", "BNB/ETH", "SOL/BTC"];
+    const transferFees: Record<string, number> = (insertSettings.transferFees as Record<string, number>) || { binance: 0.1, coinbase: 0.15, kraken: 0.12 };
     this.settings = {
       id,
       minProfitPercent: insertSettings.minProfitPercent || "0.5",
       maxExposurePerTrade: insertSettings.maxExposurePerTrade || "1000",
       enabledExchanges,
       enabledPairs,
+      transferFees,
+      enableTriangularArbitrage: insertSettings.enableTriangularArbitrage ?? true,
       autoTradeEnabled: insertSettings.autoTradeEnabled ?? false,
       notificationsEnabled: insertSettings.notificationsEnabled ?? true,
       updatedAt: new Date(),
@@ -119,6 +124,7 @@ export class MemStorage implements IStorage {
     const path = insertOpp.path as any;
     const opportunity: ArbitrageOpportunity = {
       id,
+      arbitrageType: insertOpp.arbitrageType || "cross-exchange",
       path,
       profitPercent: insertOpp.profitPercent,
       status: insertOpp.status || "active",

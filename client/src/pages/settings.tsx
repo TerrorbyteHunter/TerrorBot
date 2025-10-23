@@ -20,7 +20,9 @@ export default function SettingsPage() {
     minProfitPercent: "0.5",
     maxExposurePerTrade: "1000",
     enabledExchanges: ["binance", "coinbase", "kraken"],
-    enabledPairs: ["BTC/USDT", "ETH/USDT", "BNB/USDT"],
+    enabledPairs: ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT", "ETH/BTC", "BNB/ETH", "SOL/BTC"],
+    transferFees: { binance: 0.1, coinbase: 0.15, kraken: 0.12 },
+    enableTriangularArbitrage: true,
     autoTradeEnabled: false,
     notificationsEnabled: true,
   });
@@ -32,6 +34,8 @@ export default function SettingsPage() {
         maxExposurePerTrade: settings.maxExposurePerTrade,
         enabledExchanges: settings.enabledExchanges,
         enabledPairs: settings.enabledPairs,
+        transferFees: settings.transferFees as Record<string, number>,
+        enableTriangularArbitrage: settings.enableTriangularArbitrage,
         autoTradeEnabled: settings.autoTradeEnabled,
         notificationsEnabled: settings.notificationsEnabled,
       });
@@ -45,6 +49,8 @@ export default function SettingsPage() {
         maxExposurePerTrade: config.maxExposurePerTrade,
         enabledExchanges: config.enabledExchanges,
         enabledPairs: config.enabledPairs,
+        transferFees: config.transferFees,
+        enableTriangularArbitrage: config.enableTriangularArbitrage,
         autoTradeEnabled: config.autoTradeEnabled,
         notificationsEnabled: config.notificationsEnabled,
       });
@@ -65,7 +71,8 @@ export default function SettingsPage() {
   };
 
   const exchanges = ["binance", "coinbase", "kraken"];
-  const pairs = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "ADA/USDT"];
+  const usdtPairs = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT"];
+  const triangularPairs = ["ETH/BTC", "BNB/ETH", "SOL/BTC"];
 
   const toggleExchange = (exchange: string) => {
     setConfig((prev) => ({
@@ -129,6 +136,47 @@ export default function SettingsPage() {
                 data-testid="switch-notifications"
               />
             </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="triangular">Triangular Arbitrage</Label>
+                <p className="text-xs text-muted-foreground">
+                  Enable single-exchange triangular arbitrage opportunities
+                </p>
+              </div>
+              <Switch
+                id="triangular"
+                checked={config.enableTriangularArbitrage}
+                onCheckedChange={(checked) => setConfig({ ...config, enableTriangularArbitrage: checked })}
+                data-testid="switch-triangular"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Transfer Fees</CardTitle>
+            <CardDescription>Configure transfer fees for cross-exchange arbitrage (%)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {exchanges.map((exchange) => (
+              <div key={exchange} className="space-y-2">
+                <Label htmlFor={`fee-${exchange}`} className="capitalize">
+                  {exchange} Transfer Fee (%)
+                </Label>
+                <Input
+                  id={`fee-${exchange}`}
+                  type="number"
+                  step="0.01"
+                  value={config.transferFees[exchange] || 0}
+                  onChange={(e) => setConfig({
+                    ...config,
+                    transferFees: { ...config.transferFees, [exchange]: parseFloat(e.target.value) || 0 }
+                  })}
+                  data-testid={`input-transfer-fee-${exchange}`}
+                />
+              </div>
+            ))}
           </CardContent>
         </Card>
 
@@ -195,20 +243,44 @@ export default function SettingsPage() {
             <CardTitle>Trading Pairs</CardTitle>
             <CardDescription>Select currency pairs to monitor</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {pairs.map((pair) => (
-              <div key={pair} className="flex items-center justify-between">
-                <Label htmlFor={`pair-${pair}`} className="font-mono text-sm">
-                  {pair}
-                </Label>
-                <Switch
-                  id={`pair-${pair}`}
-                  checked={config.enabledPairs.includes(pair)}
-                  onCheckedChange={() => togglePair(pair)}
-                  data-testid={`switch-pair-${pair}`}
-                />
+          <CardContent className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium mb-3">USDT Pairs (Cross-Exchange)</h3>
+              <div className="space-y-3">
+                {usdtPairs.map((pair) => (
+                  <div key={pair} className="flex items-center justify-between">
+                    <Label htmlFor={`pair-${pair}`} className="font-mono text-sm">
+                      {pair}
+                    </Label>
+                    <Switch
+                      id={`pair-${pair}`}
+                      checked={config.enabledPairs.includes(pair)}
+                      onCheckedChange={() => togglePair(pair)}
+                      data-testid={`switch-pair-${pair}`}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+            <div className="border-t pt-4">
+              <h3 className="text-sm font-medium mb-3">Cross-Asset Pairs (Triangular Arbitrage)</h3>
+              <p className="text-xs text-muted-foreground mb-3">Required for triangular arbitrage within a single exchange</p>
+              <div className="space-y-3">
+                {triangularPairs.map((pair) => (
+                  <div key={pair} className="flex items-center justify-between">
+                    <Label htmlFor={`pair-${pair}`} className="font-mono text-sm">
+                      {pair}
+                    </Label>
+                    <Switch
+                      id={`pair-${pair}`}
+                      checked={config.enabledPairs.includes(pair)}
+                      onCheckedChange={() => togglePair(pair)}
+                      data-testid={`switch-pair-${pair}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
