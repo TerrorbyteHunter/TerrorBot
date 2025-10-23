@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import type { PriceUpdate, OpportunityUpdate } from "@shared/schema";
+import type { PriceUpdate, OpportunityUpdate, TradeUpdate, NotificationUpdate, WalletUpdate, ExecutionDetails } from "@shared/schema";
 
 const clients = new Set<WebSocket>();
 
@@ -50,6 +50,101 @@ function broadcastToClients(data: any) {
   });
 }
 
+async function executeTradeWithFallback(opportunityId: string | null, path: any, profitPercent: string, initialAmount: number) {
+  const executionDetails: ExecutionDetails = {
+    steps: [],
+    fallbackUsed: false,
+    retryCount: 0,
+  };
+
+  for (let i = 0; i < path.exchanges.length; i++) {
+    const exchange = path.exchanges[i];
+    const pair = path.pairs[i];
+    const price = path.prices[i];
+    
+    const success = Math.random() > 0.1;
+    
+    executionDetails.steps.push({
+      exchange,
+      action: `trade ${pair}`,
+      status: success ? "completed" : "failed",
+      amount: initialAmount,
+      price,
+      error: success ? undefined : "Simulated connection timeout",
+    });
+
+    if (!success && i < path.exchanges.length - 1) {
+      executionDetails.fallbackUsed = true;
+      executionDetails.retryCount = (executionDetails.retryCount || 0) + 1;
+      
+      await storage.addNotification({
+        type: "trade_warning",
+        title: "Trade Execution Issue",
+        message: `Failed to execute on ${exchange}, attempting fallback`,
+        severity: "warning",
+        metadata: { opportunityId, exchange, pair },
+      });
+    }
+  }
+
+  const allStepsSucceeded = executionDetails.steps.every(step => step.status === "completed");
+  const profitAmount = allStepsSucceeded ? (initialAmount * parseFloat(profitPercent)) / 100 : 0;
+  const finalAmount = initialAmount + profitAmount;
+
+  const trade = await storage.addTrade({
+    opportunityId,
+    path,
+    initialAmount: initialAmount.toString(),
+    finalAmount: finalAmount.toString(),
+    profitPercent: profitPercent.toString(),
+    profitAmount: profitAmount.toString(),
+    status: allStepsSucceeded ? "executed" : "failed",
+    executionDetails,
+  });
+
+  if (allStepsSucceeded) {
+    await storage.addNotification({
+      type: "trade_success",
+      title: "Trade Executed Successfully",
+      message: `Profit: $${profitAmount.toFixed(2)} (${profitPercent}%)`,
+      severity: "success",
+      metadata: { tradeId: trade.id, profitAmount, profitPercent },
+    });
+  } else {
+    await storage.addNotification({
+      type: "trade_error",
+      title: "Trade Execution Failed",
+      message: "Unable to complete all trade steps",
+      severity: "error",
+      metadata: { tradeId: trade.id },
+    });
+  }
+
+  const tradeUpdate: TradeUpdate = {
+    type: "trade",
+    trade,
+  };
+  broadcastToClients(tradeUpdate);
+
+  const notification = await storage.addNotification({
+    type: allStepsSucceeded ? "trade_success" : "trade_error",
+    title: allStepsSucceeded ? "Trade Executed" : "Trade Failed",
+    message: allStepsSucceeded 
+      ? `Profit: $${profitAmount.toFixed(2)}`
+      : "Trade execution failed",
+    severity: allStepsSucceeded ? "success" : "error",
+    metadata: { tradeId: trade.id },
+  });
+
+  const notificationUpdate: NotificationUpdate = {
+    type: "notification",
+    notification,
+  };
+  broadcastToClients(notificationUpdate);
+
+  return trade;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/settings", async (req, res) => {
     const settings = await storage.getSettings();
@@ -72,23 +167,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/trades/execute", async (req, res) => {
     try {
-      const { opportunityId, path, profitPercent } = req.body;
-      
+      const { opportunityId, path, profitPercent, autoExecute } = req.body;
       const initialAmount = 1000;
-      const profitAmount = (initialAmount * parseFloat(profitPercent)) / 100;
-      const finalAmount = initialAmount + profitAmount;
 
-      const trade = await storage.addTrade({
-        opportunityId,
-        path,
-        initialAmount: initialAmount.toString(),
-        finalAmount: finalAmount.toString(),
-        profitPercent: profitPercent.toString(),
-        profitAmount: profitAmount.toString(),
-        status: "simulated",
-      });
+      if (autoExecute) {
+        const trade = await executeTradeWithFallback(opportunityId || null, path, profitPercent.toString(), initialAmount);
+        res.json(trade);
+      } else {
+        const profitAmount = (initialAmount * parseFloat(profitPercent)) / 100;
+        const finalAmount = initialAmount + profitAmount;
 
-      res.json(trade);
+        const trade = await storage.addTrade({
+          opportunityId: opportunityId || null,
+          path,
+          initialAmount: initialAmount.toString(),
+          finalAmount: finalAmount.toString(),
+          profitPercent: profitPercent.toString(),
+          profitAmount: profitAmount.toString(),
+          status: "simulated",
+        });
+
+        res.json(trade);
+      }
     } catch (error) {
       res.status(400).json({ error: "Failed to execute trade" });
     }
@@ -153,6 +253,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/exchange-connections", async (req, res) => {
+    const connections = await storage.getAllExchangeConnections();
+    res.json(connections);
+  });
+
+  app.post("/api/exchange-connections", async (req, res) => {
+    try {
+      const connection = await storage.addExchangeConnection(req.body);
+      
+      await storage.addNotification({
+        type: "exchange_connected",
+        title: "Exchange Connected",
+        message: `Successfully connected to ${req.body.exchangeName}`,
+        severity: "success",
+        metadata: { exchangeName: req.body.exchangeName },
+      });
+
+      res.json(connection);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to add exchange connection" });
+    }
+  });
+
+  app.put("/api/exchange-connections/:id", async (req, res) => {
+    try {
+      const connection = await storage.updateExchangeConnection(req.params.id, req.body);
+      if (!connection) {
+        res.status(404).json({ error: "Connection not found" });
+        return;
+      }
+      res.json(connection);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update connection" });
+    }
+  });
+
+  app.delete("/api/exchange-connections/:id", async (req, res) => {
+    const success = await storage.deleteExchangeConnection(req.params.id);
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: "Connection not found" });
+    }
+  });
+
+  app.get("/api/wallets", async (req, res) => {
+    const wallets = await storage.getAllWallets();
+    res.json(wallets);
+  });
+
+  app.post("/api/wallets/refresh", async (req, res) => {
+    try {
+      const connections = await storage.getAllExchangeConnections();
+      const wallets = [];
+
+      for (const connection of connections) {
+        if (connection.isActive) {
+          const currencies = ["USDT", "BTC", "ETH", "BNB"];
+          for (const currency of currencies) {
+            const balance = (Math.random() * 10000).toFixed(2);
+            const locked = (Math.random() * balance).toFixed(2);
+            const available = (parseFloat(balance) - parseFloat(locked)).toFixed(2);
+
+            const wallet = await storage.addWallet({
+              exchangeConnectionId: connection.id,
+              currency,
+              balance,
+              available,
+              locked,
+            });
+            wallets.push(wallet);
+          }
+        }
+      }
+
+      const walletUpdate: WalletUpdate = {
+        type: "wallet",
+        wallets,
+      };
+      broadcastToClients(walletUpdate);
+
+      res.json(wallets);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to refresh wallets" });
+    }
+  });
+
+  app.get("/api/notifications", async (req, res) => {
+    const notifications = await storage.getAllNotifications();
+    res.json(notifications);
+  });
+
+  app.get("/api/notifications/unread", async (req, res) => {
+    const notifications = await storage.getUnreadNotifications();
+    res.json(notifications);
+  });
+
+  app.put("/api/notifications/:id/read", async (req, res) => {
+    const success = await storage.markNotificationAsRead(req.params.id);
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: "Notification not found" });
+    }
+  });
+
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
@@ -202,7 +408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           path: opportunity.path,
           profitPercent: opportunity.profitPercent.toString(),
           status: "active",
-        }).then(opp => {
+        }).then(async (opp) => {
           const oppUpdate: OpportunityUpdate = {
             type: "opportunity",
             id: opp.id,
@@ -211,6 +417,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timestamp: new Date(opp.timestamp).getTime(),
           };
           broadcastToClients(oppUpdate);
+
+          const settings = await storage.getSettings();
+          if (settings?.autoTradeEnabled && parseFloat(opp.profitPercent) >= parseFloat(settings.minProfitPercent)) {
+            await executeTradeWithFallback(
+              opp.id,
+              opp.path,
+              opp.profitPercent,
+              parseFloat(settings.maxExposurePerTrade)
+            );
+          }
         });
       }
     }
