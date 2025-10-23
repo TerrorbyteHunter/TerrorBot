@@ -7,8 +7,9 @@ type AnalyticsChartProps = {
 };
 
 export function AnalyticsChart({ trades }: AnalyticsChartProps) {
-  const chartData = trades.slice(0, 20).reverse().map((trade, index) => {
-    const cumulativeProfit = trades
+  const recentTrades = trades.slice(0, 20).reverse();
+  const chartData = recentTrades.map((trade, index) => {
+    const cumulativeProfit = recentTrades
       .slice(0, index + 1)
       .reduce((sum, t) => sum + parseFloat(t.profitAmount), 0);
 

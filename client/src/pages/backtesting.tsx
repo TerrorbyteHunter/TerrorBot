@@ -23,16 +23,17 @@ export default function Backtesting() {
   const handleRunBacktest = async () => {
     setIsRunning(true);
     try {
-      const response = await apiRequest<{ trades: Trade[] }>("POST", "/api/backtest/run", {
+      const response = await apiRequest("POST", "/api/backtest/run", {
         initialCapital: parseFloat(config.initialCapital),
         days: parseInt(config.days),
         minProfit: parseFloat(config.minProfit),
       });
 
-      setResults(response.trades);
+      const data = await response.json() as { trades: Trade[] };
+      setResults(data.trades);
       toast({
         title: "Backtest Complete",
-        description: `Simulated ${response.trades.length} trades over ${config.days} days`,
+        description: `Simulated ${data.trades.length} trades over ${config.days} days`,
       });
     } catch (error) {
       toast({

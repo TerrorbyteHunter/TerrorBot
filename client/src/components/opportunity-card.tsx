@@ -23,7 +23,6 @@ export function OpportunityCard({
 
   return (
     <Card
-      className={`border-l-4 ${isProfitable ? "border-l-chart-1" : "border-l-chart-2"}`}
       data-testid={`card-opportunity-${id}`}
     >
       <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-3">
@@ -33,7 +32,7 @@ export function OpportunityCard({
         </div>
         <Badge
           variant={isProfitable ? "default" : "secondary"}
-          className={isProfitable ? "bg-chart-1 hover:bg-chart-1" : ""}
+          className={isProfitable ? "bg-chart-1" : ""}
           data-testid={`badge-profit-${id}`}
         >
           {isProfitable ? "+" : ""}{profitPercent.toFixed(2)}%
