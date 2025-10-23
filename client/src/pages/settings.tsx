@@ -21,6 +21,8 @@ export default function SettingsPage() {
     maxExposurePerTrade: "1000",
     enabledExchanges: ["binance", "coinbase", "kraken"],
     enabledPairs: ["BTC/USDT", "ETH/USDT", "BNB/USDT"],
+    autoTradeEnabled: false,
+    notificationsEnabled: true,
   });
 
   useEffect(() => {
@@ -30,6 +32,8 @@ export default function SettingsPage() {
         maxExposurePerTrade: settings.maxExposurePerTrade,
         enabledExchanges: settings.enabledExchanges,
         enabledPairs: settings.enabledPairs,
+        autoTradeEnabled: settings.autoTradeEnabled,
+        notificationsEnabled: settings.notificationsEnabled,
       });
     }
   }, [settings]);
@@ -41,6 +45,8 @@ export default function SettingsPage() {
         maxExposurePerTrade: config.maxExposurePerTrade,
         enabledExchanges: config.enabledExchanges,
         enabledPairs: config.enabledPairs,
+        autoTradeEnabled: config.autoTradeEnabled,
+        notificationsEnabled: config.notificationsEnabled,
       });
 
       queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
@@ -89,6 +95,43 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Automation</CardTitle>
+            <CardDescription>Configure automated trading and notifications</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="auto-trade">Automated Trading</Label>
+                <p className="text-xs text-muted-foreground">
+                  Automatically execute trades when opportunities are detected
+                </p>
+              </div>
+              <Switch
+                id="auto-trade"
+                checked={config.autoTradeEnabled}
+                onCheckedChange={(checked) => setConfig({ ...config, autoTradeEnabled: checked })}
+                data-testid="switch-auto-trade"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="notifications">Notifications</Label>
+                <p className="text-xs text-muted-foreground">
+                  Receive alerts for trades and system events
+                </p>
+              </div>
+              <Switch
+                id="notifications"
+                checked={config.notificationsEnabled}
+                onCheckedChange={(checked) => setConfig({ ...config, notificationsEnabled: checked })}
+                data-testid="switch-notifications"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Risk Management</CardTitle>

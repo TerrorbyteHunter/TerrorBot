@@ -51,7 +51,10 @@ function broadcastToClients(data: any) {
 }
 
 async function executeTradeWithFallback(opportunityId: string | null, path: any, profitPercent: string, initialAmount: number) {
-  const executionDetails: ExecutionDetails = {
+  const settings = await storage.getSettings();
+  const notificationsEnabled = settings?.notificationsEnabled ?? true;
+
+  const executionDetails: any = {
     steps: [],
     fallbackUsed: false,
     retryCount: 0,
@@ -77,13 +80,15 @@ async function executeTradeWithFallback(opportunityId: string | null, path: any,
       executionDetails.fallbackUsed = true;
       executionDetails.retryCount = (executionDetails.retryCount || 0) + 1;
       
-      await storage.addNotification({
-        type: "trade_warning",
-        title: "Trade Execution Issue",
-        message: `Failed to execute on ${exchange}, attempting fallback`,
-        severity: "warning",
-        metadata: { opportunityId, exchange, pair },
-      });
+      if (notificationsEnabled) {
+        await storage.addNotification({
+          type: "trade_warning",
+          title: "Trade Execution Issue",
+          message: `Failed to execute on ${exchange}, attempting fallback`,
+          severity: "warning",
+          metadata: { opportunityId: opportunityId || "", exchange, pair },
+        });
+      }
     }
   }
 
@@ -102,22 +107,24 @@ async function executeTradeWithFallback(opportunityId: string | null, path: any,
     executionDetails,
   });
 
-  if (allStepsSucceeded) {
-    await storage.addNotification({
-      type: "trade_success",
-      title: "Trade Executed Successfully",
-      message: `Profit: $${profitAmount.toFixed(2)} (${profitPercent}%)`,
-      severity: "success",
-      metadata: { tradeId: trade.id, profitAmount, profitPercent },
-    });
-  } else {
-    await storage.addNotification({
-      type: "trade_error",
-      title: "Trade Execution Failed",
-      message: "Unable to complete all trade steps",
-      severity: "error",
-      metadata: { tradeId: trade.id },
-    });
+  if (notificationsEnabled) {
+    if (allStepsSucceeded) {
+      await storage.addNotification({
+        type: "trade_success",
+        title: "Trade Executed Successfully",
+        message: `Profit: $${profitAmount.toFixed(2)} (${profitPercent}%)`,
+        severity: "success",
+        metadata: { tradeId: trade.id, profitAmount, profitPercent },
+      });
+    } else {
+      await storage.addNotification({
+        type: "trade_error",
+        title: "Trade Execution Failed",
+        message: "Unable to complete all trade steps",
+        severity: "error",
+        metadata: { tradeId: trade.id },
+      });
+    }
   }
 
   const tradeUpdate: TradeUpdate = {
@@ -125,22 +132,6 @@ async function executeTradeWithFallback(opportunityId: string | null, path: any,
     trade,
   };
   broadcastToClients(tradeUpdate);
-
-  const notification = await storage.addNotification({
-    type: allStepsSucceeded ? "trade_success" : "trade_error",
-    title: allStepsSucceeded ? "Trade Executed" : "Trade Failed",
-    message: allStepsSucceeded 
-      ? `Profit: $${profitAmount.toFixed(2)}`
-      : "Trade execution failed",
-    severity: allStepsSucceeded ? "success" : "error",
-    metadata: { tradeId: trade.id },
-  });
-
-  const notificationUpdate: NotificationUpdate = {
-    type: "notification",
-    notification,
-  };
-  broadcastToClients(notificationUpdate);
 
   return trade;
 }
@@ -255,22 +246,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/exchange-connections", async (req, res) => {
     const connections = await storage.getAllExchangeConnections();
-    res.json(connections);
+    const redactedConnections = connections.map(conn => ({
+      ...conn,
+      apiKey: conn.apiKey.slice(-4),
+      apiSecret: "***",
+    }));
+    res.json(redactedConnections);
   });
 
   app.post("/api/exchange-connections", async (req, res) => {
     try {
+      const settings = await storage.getSettings();
+      const notificationsEnabled = settings?.notificationsEnabled ?? true;
+
       const connection = await storage.addExchangeConnection(req.body);
       
-      await storage.addNotification({
-        type: "exchange_connected",
-        title: "Exchange Connected",
-        message: `Successfully connected to ${req.body.exchangeName}`,
-        severity: "success",
-        metadata: { exchangeName: req.body.exchangeName },
-      });
+      if (notificationsEnabled) {
+        await storage.addNotification({
+          type: "exchange_connected",
+          title: "Exchange Connected",
+          message: `Successfully connected to ${req.body.exchangeName}`,
+          severity: "success",
+          metadata: { exchangeName: req.body.exchangeName },
+        });
+      }
 
-      res.json(connection);
+      const redacted = {
+        ...connection,
+        apiKey: connection.apiKey.slice(-4),
+        apiSecret: "***",
+      };
+      res.json(redacted);
     } catch (error) {
       res.status(400).json({ error: "Failed to add exchange connection" });
     }
@@ -283,7 +289,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(404).json({ error: "Connection not found" });
         return;
       }
-      res.json(connection);
+      const redacted = {
+        ...connection,
+        apiKey: connection.apiKey.slice(-4),
+        apiSecret: "***",
+      };
+      res.json(redacted);
     } catch (error) {
       res.status(400).json({ error: "Failed to update connection" });
     }
@@ -420,11 +431,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const settings = await storage.getSettings();
           if (settings?.autoTradeEnabled && parseFloat(opp.profitPercent) >= parseFloat(settings.minProfitPercent)) {
+            const maxExposure = parseFloat(settings.maxExposurePerTrade as any);
             await executeTradeWithFallback(
               opp.id,
               opp.path,
               opp.profitPercent,
-              parseFloat(settings.maxExposurePerTrade)
+              maxExposure
             );
           }
         });

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { BarChart3, TrendingUp, Settings, LineChart, Activity } from "lucide-react";
+import { BarChart3, TrendingUp, Settings, LineChart, Activity, Link as LinkIcon, Wallet, Bell } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -12,7 +12,7 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 
-const menuItems = [
+const tradingItems = [
   {
     title: "Dashboard",
     url: "/",
@@ -33,6 +33,27 @@ const menuItems = [
     url: "/analytics",
     icon: BarChart3,
   },
+];
+
+const managementItems = [
+  {
+    title: "Exchanges",
+    url: "/exchanges",
+    icon: LinkIcon,
+  },
+  {
+    title: "Wallets",
+    url: "/wallets",
+    icon: Wallet,
+  },
+  {
+    title: "Notifications",
+    url: "/notifications",
+    icon: Bell,
+  },
+];
+
+const settingsItems = [
   {
     title: "Settings",
     url: "/settings",
@@ -58,10 +79,52 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>Trading</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {tradingItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
+                    data-testid={`link-${item.title.toLowerCase()}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {managementItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
+                    data-testid={`link-${item.title.toLowerCase()}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>System</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {settingsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild

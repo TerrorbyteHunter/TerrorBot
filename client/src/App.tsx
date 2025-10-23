@@ -12,6 +12,9 @@ import Opportunities from "@/pages/opportunities";
 import Backtesting from "@/pages/backtesting";
 import Analytics from "@/pages/analytics";
 import SettingsPage from "@/pages/settings";
+import ExchangesPage from "@/pages/exchanges";
+import WalletsPage from "@/pages/wallets";
+import NotificationsPage from "@/pages/notifications";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,6 +22,9 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/opportunities" component={Opportunities} />
+      <Route path="/exchanges" component={ExchangesPage} />
+      <Route path="/wallets" component={WalletsPage} />
+      <Route path="/notifications" component={NotificationsPage} />
       <Route path="/backtesting" component={Backtesting} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/settings" component={SettingsPage} />
