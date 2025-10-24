@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { PriceCard } from "@/components/price-card";
 import { OpportunityCard } from "@/components/opportunity-card";
-import { Activity } from "lucide-react";
+import { Activity, Repeat, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { PriceUpdate, OpportunityUpdate } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -73,6 +74,9 @@ export default function Dashboard() {
     }
   };
 
+  const singleExchangeOpps = opportunities.filter(o => o.path.type === "triangular");
+  const crossExchangeOpps = opportunities.filter(o => o.path.type === "cross-exchange");
+
   return (
     <div className="space-y-6">
       <div>
@@ -109,28 +113,91 @@ export default function Dashboard() {
 
       <div>
         <h2 className="text-2xl font-bold mb-4">Active Opportunities</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          {opportunities.length === 0 ? (
-            <Card className="md:col-span-2">
-              <CardContent className="flex items-center justify-center py-12">
-                <p className="text-muted-foreground">
-                  No arbitrage opportunities detected yet
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            opportunities.map((opp) => (
-              <OpportunityCard
-                key={opp.id}
-                id={opp.id}
-                path={opp.path}
-                profitPercent={opp.profitPercent}
-                timestamp={opp.timestamp}
-                onExecute={handleExecuteTrade}
-              />
-            ))
-          )}
-        </div>
+        <Tabs defaultValue="all" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-3" data-testid="tabs-opportunities">
+            <TabsTrigger value="all" data-testid="tab-all">All ({opportunities.length})</TabsTrigger>
+            <TabsTrigger value="single" data-testid="tab-single">
+              <Repeat className="h-4 w-4 mr-2" />
+              Single ({singleExchangeOpps.length})
+            </TabsTrigger>
+            <TabsTrigger value="cross" data-testid="tab-cross">
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Cross ({crossExchangeOpps.length})
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="all" className="mt-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {opportunities.length === 0 ? (
+                <Card className="md:col-span-2">
+                  <CardContent className="flex items-center justify-center py-12">
+                    <p className="text-muted-foreground">
+                      No arbitrage opportunities detected yet
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                opportunities.map((opp) => (
+                  <OpportunityCard
+                    key={opp.id}
+                    id={opp.id}
+                    path={opp.path}
+                    profitPercent={opp.profitPercent}
+                    timestamp={opp.timestamp}
+                    onExecute={handleExecuteTrade}
+                  />
+                ))
+              )}
+            </div>
+          </TabsContent>
+          <TabsContent value="single" className="mt-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {singleExchangeOpps.length === 0 ? (
+                <Card className="md:col-span-2">
+                  <CardContent className="flex items-center justify-center py-12">
+                    <p className="text-muted-foreground">
+                      No single-exchange arbitrage opportunities detected yet
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                singleExchangeOpps.map((opp) => (
+                  <OpportunityCard
+                    key={opp.id}
+                    id={opp.id}
+                    path={opp.path}
+                    profitPercent={opp.profitPercent}
+                    timestamp={opp.timestamp}
+                    onExecute={handleExecuteTrade}
+                  />
+                ))
+              )}
+            </div>
+          </TabsContent>
+          <TabsContent value="cross" className="mt-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {crossExchangeOpps.length === 0 ? (
+                <Card className="md:col-span-2">
+                  <CardContent className="flex items-center justify-center py-12">
+                    <p className="text-muted-foreground">
+                      No cross-exchange arbitrage opportunities detected yet
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                crossExchangeOpps.map((opp) => (
+                  <OpportunityCard
+                    key={opp.id}
+                    id={opp.id}
+                    path={opp.path}
+                    profitPercent={opp.profitPercent}
+                    timestamp={opp.timestamp}
+                    onExecute={handleExecuteTrade}
+                  />
+                ))
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

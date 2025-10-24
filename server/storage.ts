@@ -25,10 +25,13 @@ export interface IStorage {
   
   addArbitrageOpportunity(opportunity: InsertArbitrageOpportunity): Promise<ArbitrageOpportunity>;
   getActiveOpportunities(): Promise<ArbitrageOpportunity[]>;
+  getFilteredOpportunities(type?: string): Promise<ArbitrageOpportunity[]>;
   
   addTrade(trade: InsertTrade): Promise<Trade>;
   getAllTrades(): Promise<Trade[]>;
   getRecentTrades(limit?: number): Promise<Trade[]>;
+  getFilteredTrades(filters: { startDate?: Date; endDate?: Date; status?: string; arbitrageType?: string }): Promise<Trade[]>;
+  clearTrades(filters?: { startDate?: Date; endDate?: Date; status?: string; arbitrageType?: string }): Promise<number>;
   
   addExchangeConnection(connection: InsertExchangeConnection): Promise<ExchangeConnection>;
   getAllExchangeConnections(): Promise<ExchangeConnection[]>;
@@ -68,10 +71,14 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       minProfitPercent: "0.5",
       maxExposurePerTrade: "1000",
-      enabledExchanges: ["binance", "coinbase", "kraken"],
+      enabledExchanges: ["binance", "coinbase", "kraken", "okx", "kucoin"],
       enabledPairs: ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT", "ETH/BTC", "BNB/ETH", "SOL/BTC"],
-      transferFees: { binance: 0.1, coinbase: 0.15, kraken: 0.12 },
+      transferFees: { binance: 0.1, coinbase: 0.15, kraken: 0.12, okx: 0.1, kucoin: 0.1 },
+      tradingFees: { binance: 0.1, coinbase: 0.5, kraken: 0.26, okx: 0.1, kucoin: 0.1 },
+      tradingAmounts: { binance: 1000, coinbase: 1000, kraken: 1000, okx: 1000, kucoin: 1000 },
+      simulationAmount: "1000",
       enableTriangularArbitrage: true,
+      enableCrossExchangeArbitrage: true,
       autoTradeEnabled: false,
       notificationsEnabled: true,
       updatedAt: new Date(),
@@ -84,17 +91,23 @@ export class MemStorage implements IStorage {
 
   async updateSettings(insertSettings: InsertSettings): Promise<Settings> {
     const id = this.settings?.id || randomUUID();
-    const enabledExchanges: string[] = (insertSettings.enabledExchanges as string[]) || ["binance", "coinbase", "kraken"];
+    const enabledExchanges: string[] = (insertSettings.enabledExchanges as string[]) || ["binance", "coinbase", "kraken", "okx", "kucoin"];
     const enabledPairs: string[] = (insertSettings.enabledPairs as string[]) || ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT", "ETH/BTC", "BNB/ETH", "SOL/BTC"];
-    const transferFees: Record<string, number> = (insertSettings.transferFees as Record<string, number>) || { binance: 0.1, coinbase: 0.15, kraken: 0.12 };
+    const transferFees: Record<string, number> = (insertSettings.transferFees as Record<string, number>) || { binance: 0.1, coinbase: 0.15, kraken: 0.12, okx: 0.1, kucoin: 0.1 };
+    const tradingFees: Record<string, number> = (insertSettings.tradingFees as Record<string, number>) || { binance: 0.1, coinbase: 0.5, kraken: 0.26, okx: 0.1, kucoin: 0.1 };
+    const tradingAmounts: Record<string, number> = (insertSettings.tradingAmounts as Record<string, number>) || { binance: 1000, coinbase: 1000, kraken: 1000, okx: 1000, kucoin: 1000 };
     this.settings = {
       id,
       minProfitPercent: insertSettings.minProfitPercent || "0.5",
       maxExposurePerTrade: insertSettings.maxExposurePerTrade || "1000",
+      simulationAmount: insertSettings.simulationAmount || "1000",
       enabledExchanges,
       enabledPairs,
       transferFees,
+      tradingFees,
+      tradingAmounts,
       enableTriangularArbitrage: insertSettings.enableTriangularArbitrage ?? true,
+      enableCrossExchangeArbitrage: insertSettings.enableCrossExchangeArbitrage ?? true,
       autoTradeEnabled: insertSettings.autoTradeEnabled ?? false,
       notificationsEnabled: insertSettings.notificationsEnabled ?? true,
       updatedAt: new Date(),
@@ -141,6 +154,16 @@ export class MemStorage implements IStorage {
       .slice(0, 20);
   }
 
+  async getFilteredOpportunities(type?: string): Promise<ArbitrageOpportunity[]> {
+    return Array.from(this.opportunities.values())
+      .filter((opp) => {
+        if (type && opp.arbitrageType !== type) return false;
+        return opp.status === "active";
+      })
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 20);
+  }
+
   async addTrade(insertTrade: InsertTrade): Promise<Trade> {
     const id = randomUUID();
     const path = insertTrade.path as any;
@@ -170,6 +193,41 @@ export class MemStorage implements IStorage {
     return Array.from(this.trades.values())
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, limit);
+  }
+
+  async getFilteredTrades(filters: { startDate?: Date; endDate?: Date; status?: string; arbitrageType?: string }): Promise<Trade[]> {
+    return Array.from(this.trades.values())
+      .filter((trade) => {
+        if (filters.startDate && new Date(trade.timestamp) < filters.startDate) return false;
+        if (filters.endDate && new Date(trade.timestamp) > filters.endDate) return false;
+        if (filters.status && trade.status !== filters.status) return false;
+        if (filters.arbitrageType && trade.path && (trade.path as any).type !== filters.arbitrageType) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }
+
+  async clearTrades(filters?: { startDate?: Date; endDate?: Date; status?: string; arbitrageType?: string }): Promise<number> {
+    let count = 0;
+    if (!filters || Object.keys(filters).length === 0) {
+      count = this.trades.size;
+      this.trades.clear();
+    } else {
+      const toDelete: string[] = [];
+      this.trades.forEach((trade, id) => {
+        let shouldDelete = true;
+        if (filters.startDate && new Date(trade.timestamp) < filters.startDate) shouldDelete = false;
+        if (filters.endDate && new Date(trade.timestamp) > filters.endDate) shouldDelete = false;
+        if (filters.status && trade.status !== filters.status) shouldDelete = false;
+        if (filters.arbitrageType && trade.path && (trade.path as any).type !== filters.arbitrageType) shouldDelete = false;
+        if (shouldDelete) {
+          toDelete.push(id);
+        }
+      });
+      toDelete.forEach(id => this.trades.delete(id));
+      count = toDelete.length;
+    }
+    return count;
   }
 
   async addExchangeConnection(insertConnection: InsertExchangeConnection): Promise<ExchangeConnection> {

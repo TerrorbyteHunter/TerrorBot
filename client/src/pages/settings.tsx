@@ -19,10 +19,14 @@ export default function SettingsPage() {
   const [config, setConfig] = useState({
     minProfitPercent: "0.5",
     maxExposurePerTrade: "1000",
-    enabledExchanges: ["binance", "coinbase", "kraken"],
+    simulationAmount: "1000",
+    enabledExchanges: ["binance", "coinbase", "kraken", "okx", "kucoin"],
     enabledPairs: ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT", "ETH/BTC", "BNB/ETH", "SOL/BTC"],
-    transferFees: { binance: 0.1, coinbase: 0.15, kraken: 0.12 },
+    transferFees: { binance: 0.1, coinbase: 0.15, kraken: 0.12, okx: 0.1, kucoin: 0.1 },
+    tradingFees: { binance: 0.1, coinbase: 0.5, kraken: 0.26, okx: 0.1, kucoin: 0.1 },
+    tradingAmounts: { binance: 1000, coinbase: 1000, kraken: 1000, okx: 1000, kucoin: 1000 },
     enableTriangularArbitrage: true,
+    enableCrossExchangeArbitrage: true,
     autoTradeEnabled: false,
     notificationsEnabled: true,
   });
@@ -32,10 +36,14 @@ export default function SettingsPage() {
       setConfig({
         minProfitPercent: settings.minProfitPercent,
         maxExposurePerTrade: settings.maxExposurePerTrade,
+        simulationAmount: settings.simulationAmount,
         enabledExchanges: settings.enabledExchanges,
         enabledPairs: settings.enabledPairs,
-        transferFees: settings.transferFees as Record<string, number>,
+        transferFees: settings.transferFees as any,
+        tradingFees: settings.tradingFees as any,
+        tradingAmounts: settings.tradingAmounts as any,
         enableTriangularArbitrage: settings.enableTriangularArbitrage,
+        enableCrossExchangeArbitrage: settings.enableCrossExchangeArbitrage,
         autoTradeEnabled: settings.autoTradeEnabled,
         notificationsEnabled: settings.notificationsEnabled,
       });
@@ -47,10 +55,14 @@ export default function SettingsPage() {
       await apiRequest("PUT", "/api/settings", {
         minProfitPercent: config.minProfitPercent,
         maxExposurePerTrade: config.maxExposurePerTrade,
+        simulationAmount: config.simulationAmount,
         enabledExchanges: config.enabledExchanges,
         enabledPairs: config.enabledPairs,
         transferFees: config.transferFees,
+        tradingFees: config.tradingFees,
+        tradingAmounts: config.tradingAmounts,
         enableTriangularArbitrage: config.enableTriangularArbitrage,
+        enableCrossExchangeArbitrage: config.enableCrossExchangeArbitrage,
         autoTradeEnabled: config.autoTradeEnabled,
         notificationsEnabled: config.notificationsEnabled,
       });
@@ -70,7 +82,7 @@ export default function SettingsPage() {
     }
   };
 
-  const exchanges = ["binance", "coinbase", "kraken"];
+  const exchanges = ["binance", "coinbase", "kraken", "okx", "kucoin"];
   const usdtPairs = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT"];
   const triangularPairs = ["ETH/BTC", "BNB/ETH", "SOL/BTC"];
 
@@ -138,7 +150,7 @@ export default function SettingsPage() {
             </div>
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="triangular">Triangular Arbitrage</Label>
+                <Label htmlFor="triangular">Single-Exchange Arbitrage</Label>
                 <p className="text-xs text-muted-foreground">
                   Enable single-exchange triangular arbitrage opportunities
                 </p>
@@ -150,6 +162,47 @@ export default function SettingsPage() {
                 data-testid="switch-triangular"
               />
             </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="cross-exchange">Cross-Exchange Arbitrage</Label>
+                <p className="text-xs text-muted-foreground">
+                  Enable cross-exchange arbitrage opportunities
+                </p>
+              </div>
+              <Switch
+                id="cross-exchange"
+                checked={config.enableCrossExchangeArbitrage}
+                onCheckedChange={(checked) => setConfig({ ...config, enableCrossExchangeArbitrage: checked })}
+                data-testid="switch-cross-exchange"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Trading Fees</CardTitle>
+            <CardDescription>Configure trading fees per exchange (%)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {exchanges.map((exchange) => (
+              <div key={exchange} className="space-y-2">
+                <Label htmlFor={`trading-fee-${exchange}`} className="capitalize">
+                  {exchange} Trading Fee (%)
+                </Label>
+                <Input
+                  id={`trading-fee-${exchange}`}
+                  type="number"
+                  step="0.01"
+                  value={(config.tradingFees as any)[exchange] || 0}
+                  onChange={(e) => setConfig({
+                    ...config,
+                    tradingFees: { ...config.tradingFees, [exchange]: parseFloat(e.target.value) || 0 }
+                  })}
+                  data-testid={`input-trading-fee-${exchange}`}
+                />
+              </div>
+            ))}
           </CardContent>
         </Card>
 
@@ -168,12 +221,39 @@ export default function SettingsPage() {
                   id={`fee-${exchange}`}
                   type="number"
                   step="0.01"
-                  value={config.transferFees[exchange] || 0}
+                  value={(config.transferFees as any)[exchange] || 0}
                   onChange={(e) => setConfig({
                     ...config,
                     transferFees: { ...config.transferFees, [exchange]: parseFloat(e.target.value) || 0 }
                   })}
                   data-testid={`input-transfer-fee-${exchange}`}
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Trading Amounts</CardTitle>
+            <CardDescription>Set allowable trading amount per exchange ($)</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {exchanges.map((exchange) => (
+              <div key={exchange} className="space-y-2">
+                <Label htmlFor={`amount-${exchange}`} className="capitalize">
+                  {exchange} Trading Amount ($)
+                </Label>
+                <Input
+                  id={`amount-${exchange}`}
+                  type="number"
+                  step="100"
+                  value={(config.tradingAmounts as any)[exchange] || 0}
+                  onChange={(e) => setConfig({
+                    ...config,
+                    tradingAmounts: { ...config.tradingAmounts, [exchange]: parseFloat(e.target.value) || 0 }
+                  })}
+                  data-testid={`input-trading-amount-${exchange}`}
                 />
               </div>
             ))}
@@ -211,6 +291,20 @@ export default function SettingsPage() {
               />
               <p className="text-xs text-muted-foreground">
                 Maximum amount to risk on a single trade
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="simulation-amount">Simulation Amount ($)</Label>
+              <Input
+                id="simulation-amount"
+                type="number"
+                step="100"
+                value={config.simulationAmount}
+                onChange={(e) => setConfig({ ...config, simulationAmount: e.target.value })}
+                data-testid="input-simulation-amount"
+              />
+              <p className="text-xs text-muted-foreground">
+                Amount to use for simulation trades
               </p>
             </div>
           </CardContent>

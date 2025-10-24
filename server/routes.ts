@@ -10,10 +10,11 @@ function generateMockPrice(base: number, volatility: number = 0.01): number {
   return base * (1 + (Math.random() - 0.5) * volatility);
 }
 
-function detectTriangularArbitrage(enabledExchanges: string[], enabledPairs: string[]) {
+function detectTriangularArbitrage(enabledExchanges: string[], enabledPairs: string[], tradingFeesConfig: Record<string, number>, tradingAmountsConfig: Record<string, number>) {
   if (enabledExchanges.length === 0) return null;
   
   const exchange = enabledExchanges[Math.floor(Math.random() * enabledExchanges.length)];
+  const initialAmount = tradingAmountsConfig[exchange] || 1000;
   
   const basePrices = {
     "BTC/USDT": 45000,
@@ -55,12 +56,18 @@ function detectTriangularArbitrage(enabledExchanges: string[], enabledPairs: str
     prices = [btcPrice, solPrice / btcPrice * (1 + (Math.random() - 0.5) * 0.01), solPrice];
   }
 
-  let amount = 1000;
+  const tradingFee = tradingFeesConfig[exchange] || 0.1;
+  const totalTradingFees = tradingFee * 3;
+
+  let amount = initialAmount;
   amount = amount / prices[0];
+  amount = amount * (1 - tradingFee / 100);
   amount = amount / prices[1];
+  amount = amount * (1 - tradingFee / 100);
   amount = amount * prices[2];
+  amount = amount * (1 - tradingFee / 100);
   
-  const profitPercent = ((amount - 1000) / 1000) * 100;
+  const profitPercent = ((amount - initialAmount) / initialAmount) * 100;
 
   if (Math.abs(profitPercent) > 0.2) {
     return {
@@ -70,15 +77,18 @@ function detectTriangularArbitrage(enabledExchanges: string[], enabledPairs: str
         exchanges: [exchange, exchange, exchange],
         pairs: selected.pairs,
         prices: prices,
+        transferFees: [0, 0, 0],
       },
       profitPercent: profitPercent,
+      tradingFees: totalTradingFees,
+      initialAmount: initialAmount,
     };
   }
 
   return null;
 }
 
-function detectCrossExchangeArbitrage(enabledExchanges: string[], enabledPairs: string[], transferFeesConfig: Record<string, number>) {
+function detectCrossExchangeArbitrage(enabledExchanges: string[], enabledPairs: string[], transferFeesConfig: Record<string, number>, tradingFeesConfig: Record<string, number>, tradingAmountsConfig: Record<string, number>) {
   if (enabledExchanges.length < 2 || enabledPairs.length === 0) return null;
   
   const basePrices = {
@@ -99,14 +109,18 @@ function detectCrossExchangeArbitrage(enabledExchanges: string[], enabledPairs: 
   const pair = availablePairs[Math.floor(Math.random() * availablePairs.length)] as keyof typeof basePrices;
   const selectedExchanges = enabledExchanges.sort(() => Math.random() - 0.5).slice(0, Math.min(3, enabledExchanges.length));
   
+  const initialAmount = tradingAmountsConfig[selectedExchanges[0]] || 1000;
+  
   const prices = selectedExchanges.map(() => generateMockPrice(basePrices[pair], 0.02));
   
   const transferFees = selectedExchanges.map(exchange => transferFeesConfig[exchange] || 0.1);
+  const tradingFees = selectedExchanges.map(exchange => tradingFeesConfig[exchange] || 0.1);
   
   const initialPrice = prices[0];
   const finalPrice = prices[prices.length - 1];
   const totalTransferFees = transferFees.reduce((a, b) => a + b, 0);
-  const profitPercent = ((finalPrice - initialPrice) / initialPrice) * 100 - totalTransferFees;
+  const totalTradingFees = tradingFees.reduce((a, b) => a + b, 0);
+  const profitPercent = ((finalPrice - initialPrice) / initialPrice) * 100 - totalTransferFees - totalTradingFees;
 
   if (Math.abs(profitPercent) > 0.3) {
     return {
@@ -119,6 +133,8 @@ function detectCrossExchangeArbitrage(enabledExchanges: string[], enabledPairs: 
         transferFees: transferFees,
       },
       profitPercent: profitPercent,
+      tradingFees: totalTradingFees,
+      initialAmount: initialAmount,
     };
   }
 
@@ -236,14 +252,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/opportunities", async (req, res) => {
-    const opportunities = await storage.getActiveOpportunities();
+    const { type } = req.query;
+    const opportunities = type 
+      ? await storage.getFilteredOpportunities(type as string)
+      : await storage.getActiveOpportunities();
     res.json(opportunities);
   });
 
   app.post("/api/trades/execute", async (req, res) => {
     try {
       const { opportunityId, path, profitPercent, autoExecute } = req.body;
-      const initialAmount = 1000;
+      const settings = await storage.getSettings();
+      const initialAmount = parseFloat(settings?.simulationAmount || "1000");
 
       if (autoExecute) {
         const trade = await executeTradeWithFallback(opportunityId || null, path, profitPercent.toString(), initialAmount);
@@ -270,8 +290,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/trades", async (req, res) => {
-    const trades = await storage.getAllTrades();
+    const { startDate, endDate, status, arbitrageType } = req.query;
+    const filters: any = {};
+    if (startDate) filters.startDate = new Date(startDate as string);
+    if (endDate) filters.endDate = new Date(endDate as string);
+    if (status) filters.status = status as string;
+    if (arbitrageType) filters.arbitrageType = arbitrageType as string;
+    
+    const trades = Object.keys(filters).length > 0
+      ? await storage.getFilteredTrades(filters)
+      : await storage.getAllTrades();
     res.json(trades);
+  });
+
+  app.post("/api/trades/clear", async (req, res) => {
+    try {
+      const { startDate, endDate, status, arbitrageType } = req.body;
+      const filters: any = {};
+      if (startDate) filters.startDate = new Date(startDate);
+      if (endDate) filters.endDate = new Date(endDate);
+      if (status) filters.status = status;
+      if (arbitrageType) filters.arbitrageType = arbitrageType;
+      
+      const count = await storage.clearTrades(Object.keys(filters).length > 0 ? filters : undefined);
+      res.json({ success: true, count });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to clear trades" });
+    }
   });
 
   app.get("/api/analytics", async (req, res) => {
@@ -307,6 +352,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const enabledExchanges = settings.enabledExchanges;
       const enabledPairs = settings.enabledPairs;
       const transferFeesConfig = settings.transferFees as Record<string, number>;
+      const tradingFeesConfig = settings.tradingFees as Record<string, number>;
+      const tradingAmountsConfig = settings.tradingAmounts as Record<string, number>;
       
       const simulatedTrades = [];
       const numTrades = Math.floor(days * 5);
@@ -315,13 +362,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let opportunity = null;
         
         if (enableTriangular && Math.random() > 0.5) {
-          opportunity = detectTriangularArbitrage(enabledExchanges, enabledPairs);
+          opportunity = detectTriangularArbitrage(enabledExchanges, enabledPairs, tradingFeesConfig, tradingAmountsConfig);
         } else {
-          opportunity = detectCrossExchangeArbitrage(enabledExchanges, enabledPairs, transferFeesConfig);
+          opportunity = detectCrossExchangeArbitrage(enabledExchanges, enabledPairs, transferFeesConfig, tradingFeesConfig, tradingAmountsConfig);
         }
         
         if (opportunity && Math.abs(opportunity.profitPercent) >= parseFloat(minProfit)) {
-          const tradeAmount = Math.min(parseFloat(initialCapital) * 0.1, 1000);
+          const tradeAmount = opportunity.initialAmount || Math.min(parseFloat(initialCapital) * 0.1, 1000);
           const profitAmount = (tradeAmount * opportunity.profitPercent) / 100;
           const finalAmount = tradeAmount + profitAmount;
 
@@ -482,7 +529,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  const exchanges = ["binance", "coinbase", "kraken"];
+  const exchanges = ["binance", "coinbase", "kraken", "okx", "kucoin"];
   const pairs = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT", "SOL/USDT", "DOGE/USDT", "DOT/USDT", "MATIC/USDT"];
   const basePrices: Record<string, number> = {
     "BTC/USDT": 45000,
@@ -524,16 +571,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!settings) return;
       
       const enableTriangular = settings.enableTriangularArbitrage ?? true;
+      const enableCrossExchange = settings.enableCrossExchangeArbitrage ?? true;
       const enabledExchanges = settings.enabledExchanges;
       const enabledPairs = settings.enabledPairs;
       const transferFeesConfig = settings.transferFees as Record<string, number>;
+      const tradingFeesConfig = settings.tradingFees as Record<string, number>;
+      const tradingAmountsConfig = settings.tradingAmounts as Record<string, number>;
       
       let opportunity = null;
       
-      if (enableTriangular && Math.random() > 0.5) {
-        opportunity = detectTriangularArbitrage(enabledExchanges, enabledPairs);
-      } else {
-        opportunity = detectCrossExchangeArbitrage(enabledExchanges, enabledPairs, transferFeesConfig);
+      if (enableTriangular && enableCrossExchange) {
+        if (Math.random() > 0.5) {
+          opportunity = detectTriangularArbitrage(enabledExchanges, enabledPairs, tradingFeesConfig, tradingAmountsConfig);
+        } else {
+          opportunity = detectCrossExchangeArbitrage(enabledExchanges, enabledPairs, transferFeesConfig, tradingFeesConfig, tradingAmountsConfig);
+        }
+      } else if (enableTriangular) {
+        opportunity = detectTriangularArbitrage(enabledExchanges, enabledPairs, tradingFeesConfig, tradingAmountsConfig);
+      } else if (enableCrossExchange) {
+        opportunity = detectCrossExchangeArbitrage(enabledExchanges, enabledPairs, transferFeesConfig, tradingFeesConfig, tradingAmountsConfig);
       }
       
       if (opportunity) {
