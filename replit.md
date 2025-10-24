@@ -29,9 +29,9 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 ## Key Features
 
 ### 1. Real-Time Dashboard
-- Live price monitoring for multiple exchanges (Binance, Coinbase, Kraken)
+- Live price monitoring for 5 exchanges (Binance, Coinbase, Kraken, OKX, KuCoin)
 - WebSocket connection indicator
-- Active arbitrage opportunities display
+- Active arbitrage opportunities display with tabs for single-exchange vs cross-exchange
 - Real-time price updates every 3 seconds
 - Supports 12 trading pairs (9 USDT pairs + 3 cross-asset pairs)
 
@@ -39,15 +39,18 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 
 #### Cross-Exchange Arbitrage
 - Detects price differences across multiple exchanges for the same pair
-- Accounts for transfer fees in profit calculations
+- Accounts for both transfer fees and trading fees in profit calculations
 - Displays transfer fees breakdown on dashboard
-- Uses configured transfer fees from settings
+- Uses configured transfer fees and trading amounts per exchange from settings
+- Can be toggled on/off in settings
 
-#### Triangular Arbitrage
+#### Triangular Arbitrage (Single-Exchange)
 - Single-exchange arbitrage (e.g., BTC → ETH → USDT → BTC)
-- No transfer delays or fees
+- No transfer delays or fees (only trading fees)
 - Requires cross-asset pairs (ETH/BTC, BNB/ETH, SOL/BTC)
+- Uses configured trading amounts per exchange
 - Indicated with "Single exchange - No transfer delays" badge
+- Can be toggled on/off in settings
 
 ### 3. Trade Simulation
 - Execute simulated trades
@@ -65,25 +68,33 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 ### 5. Analytics Dashboard
 - KPI cards (Total Trades, Win Rate, Total Profit, Average Profit)
 - Cumulative profit chart with gradient visualization
-- Recent trade history table
+- Recent trade history table with advanced filtering
+- Filter by time frame (24h, 7d, 30d, all time)
+- Filter by status (simulated, executed, failed, backtested)
+- Filter by arbitrage type (single-exchange, cross-exchange, all)
+- Clear stats functionality with filter-based deletion
 - Color-coded profit/loss display
 
 ### 6. Settings Management
 - **Risk Management**
   - Minimum profit threshold
   - Maximum exposure per trade
+  - Simulation amount for test trades
   
 - **Exchange Configuration**
-  - Toggle exchanges (Binance, Coinbase, Kraken)
+  - Toggle exchanges (Binance, Coinbase, Kraken, OKX, KuCoin)
   - Configure transfer fees for each exchange
+  - Configure trading fees for each exchange
+  - Set trading amounts per exchange
   
 - **Trading Pairs**
   - USDT Pairs: BTC, ETH, BNB, XRP, ADA, SOL, DOGE, DOT, MATIC
   - Cross-Asset Pairs: ETH/BTC, BNB/ETH, SOL/BTC (for triangular arbitrage)
   
 - **Arbitrage Type**
-  - Enable/disable triangular arbitrage
-  - All detection logic respects this setting
+  - Toggle single-exchange (triangular) arbitrage
+  - Toggle cross-exchange arbitrage
+  - All detection logic respects these settings
 
 - **Persistent Configuration**
   - Settings saved and applied to all operations
@@ -107,15 +118,18 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 - **ExchangePrice**: Exchange, symbol, price, timestamp
 - **ArbitrageOpportunity**: Trading path, profit percentage, status, arbitrage type
 - **Trade**: Execution details, profit/loss, timestamp
-- **Settings**: Risk parameters, enabled exchanges/pairs, transfer fees, arbitrage toggles
+- **Settings**: Risk parameters, enabled exchanges/pairs, transfer fees, trading fees, trading amounts, simulation amount, arbitrage toggles
 
 ### Detection Logic (Settings-Driven)
 All detection functions now respect user configuration:
-- **detectTriangularArbitrage()**: Uses enabled exchanges and pairs from settings
-- **detectCrossExchangeArbitrage()**: Uses enabled exchanges, pairs, and configured transfer fees
+- **detectTriangularArbitrage()**: Uses enabled exchanges, pairs, trading fees, and trading amounts from settings
+- **detectCrossExchangeArbitrage()**: Uses enabled exchanges, pairs, transfer fees, trading fees, and trading amounts from settings
 - **Backtesting**: Loads settings and applies same logic as live trading
 - Triangular arbitrage only runs when `enableTriangularArbitrage` is true
+- Cross-exchange arbitrage only runs when `enableCrossExchangeArbitrage` is true
 - Only detects opportunities for enabled pairs and exchanges
+- Profit calculations include trading fees deduction
+- Trading amounts per exchange determine notional size for each opportunity
 
 ## Design System
 
@@ -140,6 +154,8 @@ All detection functions now respect user configuration:
 - Analytics charts with gradient fills
 - KPI cards with trend indicators
 - Separated trading pairs sections (USDT vs Cross-Asset)
+- Tabbed interface for single-exchange vs cross-exchange opportunities
+- Advanced filtering controls in analytics
 
 ## Running the Application
 
@@ -150,14 +166,18 @@ The application runs automatically on Replit:
 
 ## Development Notes
 
-### Recent Changes (October 23, 2025)
-- ✅ Fixed all detection functions to use configured settings instead of hardcoded values
-- ✅ Added triangular pairs (ETH/BTC, BNB/ETH, SOL/BTC) to settings defaults
-- ✅ Updated Settings UI to separate USDT pairs and cross-asset pairs
-- ✅ Transfer fees now properly sourced from settings configuration
-- ✅ Triangular arbitrage toggle now properly controls detection
-- ✅ Backtesting respects all user settings
-- ✅ All enabled pairs and exchanges properly filter opportunities
+### Recent Changes (October 24, 2025)
+- ✅ Added OKX and KuCoin exchanges (now 5 total exchanges)
+- ✅ Implemented trading fees per exchange with profit calculation integration
+- ✅ Added configurable trading amounts per exchange
+- ✅ Added simulation amount setting for test trades
+- ✅ Implemented cross-exchange arbitrage toggle in settings
+- ✅ Separated single-exchange and cross-exchange opportunities with tabs on dashboard and opportunities page
+- ✅ Added comprehensive filtering to analytics (time frame, status, arbitrage type)
+- ✅ Implemented clear stats functionality with filter-based deletion
+- ✅ Trading fees now properly deducted from profit calculations
+- ✅ Detection functions use trading amounts from settings for accurate profit calculations
+- ✅ All previous fixes maintained (settings-driven detection, enabled pairs/exchanges filtering)
 
 ### Known Issues
 - Vite HMR WebSocket warnings in console (does not affect application)
