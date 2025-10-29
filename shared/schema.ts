@@ -23,6 +23,8 @@ export const arbitrageOpportunities = pgTable("arbitrage_opportunities", {
 export const trades = pgTable("trades", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   opportunityId: varchar("opportunity_id").references(() => arbitrageOpportunities.id),
+  opportunityFingerprint: text("opportunity_fingerprint"),
+  repeatIndex: integer("repeat_index").default(0),
   path: jsonb("path").notNull().$type<ArbitragePath>(),
   initialAmount: decimal("initial_amount", { precision: 20, scale: 8 }).notNull(),
   finalAmount: decimal("final_amount", { precision: 20, scale: 8 }).notNull(),
@@ -66,6 +68,16 @@ export const notifications = pgTable("notifications", {
   timestamp: timestamp("timestamp").notNull().defaultNow(),
 });
 
+export const opportunityExecutionStats = pgTable("opportunity_execution_stats", {
+  fingerprint: text("fingerprint").primaryKey(),
+  executionCount: integer("execution_count").notNull().default(0),
+  cumulativeExposure: decimal("cumulative_exposure", { precision: 20, scale: 8 }).notNull().default("0"),
+  lastExecutedAt: timestamp("last_executed_at"),
+  sequentialExecutions: integer("sequential_executions").notNull().default(0),
+  lastSequentialResetAt: timestamp("last_sequential_reset_at"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const settings = pgTable("settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   minProfitPercent: decimal("min_profit_percent", { precision: 10, scale: 4 }).notNull().default("0.5"),
@@ -82,6 +94,11 @@ export const settings = pgTable("settings", {
   autoTradeCrossExchange: boolean("auto_trade_cross_exchange").notNull().default(false),
   autoTradeSamePlatform: boolean("auto_trade_same_platform").notNull().default(false),
   autoTradeSimulation: boolean("auto_trade_simulation").notNull().default(false),
+  enableRepeatAutotrade: boolean("enable_repeat_autotrade").notNull().default(true),
+  maxSequentialExecutions: integer("max_sequential_executions").notNull().default(10),
+  maxExecutionsPerOpportunity: integer("max_executions_per_opportunity").notNull().default(100),
+  maxExposurePerOpportunity: decimal("max_exposure_per_opportunity", { precision: 20, scale: 8 }).notNull().default("50000"),
+  minCooldownMs: integer("min_cooldown_ms").notNull().default(1000),
   notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -113,6 +130,7 @@ export type Trade = typeof trades.$inferSelect;
 export type ExchangeConnection = typeof exchangeConnections.$inferSelect;
 export type Wallet = typeof wallets.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type OpportunityExecutionStats = typeof opportunityExecutionStats.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
 
 export const insertExchangePriceSchema = createInsertSchema(exchangePrices).omit({
@@ -152,12 +170,17 @@ export const insertSettingsSchema = createInsertSchema(settings).omit({
   updatedAt: true,
 });
 
+export const insertOpportunityExecutionStatsSchema = createInsertSchema(opportunityExecutionStats).omit({
+  updatedAt: true,
+});
+
 export type InsertExchangePrice = z.infer<typeof insertExchangePriceSchema>;
 export type InsertArbitrageOpportunity = z.infer<typeof insertArbitrageOpportunitySchema>;
 export type InsertTrade = z.infer<typeof insertTradeSchema>;
 export type InsertExchangeConnection = z.infer<typeof insertExchangeConnectionSchema>;
 export type InsertWallet = z.infer<typeof insertWalletSchema>;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type InsertOpportunityExecutionStats = z.infer<typeof insertOpportunityExecutionStatsSchema>;
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 
 export type PriceUpdate = {
