@@ -8,6 +8,8 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 ✅ **Triangular Arbitrage** - Single-exchange arbitrage fully functional
 ✅ **Transfer Fees** - Cross-exchange fees properly tracked and displayed
 ✅ **Settings-Driven** - All detection logic respects user configuration
+✅ **Auto-Trading** - Separate toggles for cross-platform and same-platform auto-trading
+✅ **Simulation Mode** - Auto-trades can run in simulation mode for safe testing
 
 ## Architecture
 
@@ -75,11 +77,28 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 - Clear stats functionality with filter-based deletion
 - Color-coded profit/loss display
 
-### 6. Settings Management
+### 6. Automated Trading
+- **Separate Auto-Trade Toggles**
+  - Auto-Trade: Cross-Exchange - Automatically executes cross-exchange arbitrage when profit > threshold
+  - Auto-Trade: Same-Platform - Automatically executes triangular arbitrage when profit > threshold
+  - Independent control for each arbitrage type
+  
+- **Simulation Mode**
+  - Auto-Trade in Simulation Mode toggle
+  - When enabled, auto-trades are executed as simulations (no real trades)
+  - When disabled, auto-trades use max exposure per trade setting
+  - Perfect for testing auto-trade strategy safely
+  
+- **Visual Indicators**
+  - Dashboard shows green "Auto-Trade Active" badge when any auto-trade is enabled
+  - Sub-badges indicate which modes are active (Cross-Exchange, Same-Platform, Simulation)
+  - Real-time feedback on automation status
+
+### 7. Settings Management
 - **Risk Management**
-  - Minimum profit threshold
-  - Maximum exposure per trade
-  - Simulation amount for test trades
+  - Minimum profit threshold (applies to auto-trade triggers)
+  - Maximum exposure per trade (used when auto-trade simulation is off)
+  - Simulation amount for test trades (used when auto-trade simulation is on)
   
 - **Exchange Configuration**
   - Toggle exchanges (Binance, Coinbase, Kraken, OKX, KuCoin)
@@ -92,8 +111,8 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
   - Cross-Asset Pairs: ETH/BTC, BNB/ETH, SOL/BTC (for triangular arbitrage)
   
 - **Arbitrage Type**
-  - Toggle single-exchange (triangular) arbitrage
-  - Toggle cross-exchange arbitrage
+  - Toggle single-exchange (triangular) arbitrage detection
+  - Toggle cross-exchange arbitrage detection
   - All detection logic respects these settings
 
 - **Persistent Configuration**
@@ -118,7 +137,7 @@ TerrorBot is a professional cryptocurrency arbitrage trading bot with real-time 
 - **ExchangePrice**: Exchange, symbol, price, timestamp
 - **ArbitrageOpportunity**: Trading path, profit percentage, status, arbitrage type
 - **Trade**: Execution details, profit/loss, timestamp
-- **Settings**: Risk parameters, enabled exchanges/pairs, transfer fees, trading fees, trading amounts, simulation amount, arbitrage toggles
+- **Settings**: Risk parameters, enabled exchanges/pairs, transfer fees, trading fees, trading amounts, simulation amount, arbitrage toggles, auto-trade toggles (cross-exchange, same-platform, simulation mode)
 
 ### Detection Logic (Settings-Driven)
 All detection functions now respect user configuration:
@@ -166,7 +185,15 @@ The application runs automatically on Replit:
 
 ## Development Notes
 
-### Recent Changes (October 24, 2025)
+### Recent Changes (October 29, 2025)
+- ✅ Added separate auto-trade toggles for cross-exchange and same-platform arbitrage
+- ✅ Implemented auto-trade simulation mode for safe testing
+- ✅ Added visual indicators on dashboard showing auto-trade status
+- ✅ Enhanced settings page with dedicated automation controls
+- ✅ Auto-trade respects minimum profit threshold setting
+- ✅ Fixed TypeScript errors in notification metadata handling
+
+### Previous Changes (October 24, 2025)
 - ✅ Added OKX and KuCoin exchanges (now 5 total exchanges)
 - ✅ Implemented trading fees per exchange with profit calculation integration
 - ✅ Added configurable trading amounts per exchange
