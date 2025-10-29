@@ -28,6 +28,9 @@ export default function SettingsPage() {
     enableTriangularArbitrage: true,
     enableCrossExchangeArbitrage: true,
     autoTradeEnabled: false,
+    autoTradeCrossExchange: false,
+    autoTradeSamePlatform: false,
+    autoTradeSimulation: false,
     notificationsEnabled: true,
   });
 
@@ -45,6 +48,9 @@ export default function SettingsPage() {
         enableTriangularArbitrage: settings.enableTriangularArbitrage,
         enableCrossExchangeArbitrage: settings.enableCrossExchangeArbitrage,
         autoTradeEnabled: settings.autoTradeEnabled,
+        autoTradeCrossExchange: settings.autoTradeCrossExchange,
+        autoTradeSamePlatform: settings.autoTradeSamePlatform,
+        autoTradeSimulation: settings.autoTradeSimulation,
         notificationsEnabled: settings.notificationsEnabled,
       });
     }
@@ -64,6 +70,9 @@ export default function SettingsPage() {
         enableTriangularArbitrage: config.enableTriangularArbitrage,
         enableCrossExchangeArbitrage: config.enableCrossExchangeArbitrage,
         autoTradeEnabled: config.autoTradeEnabled,
+        autoTradeCrossExchange: config.autoTradeCrossExchange,
+        autoTradeSamePlatform: config.autoTradeSamePlatform,
+        autoTradeSimulation: config.autoTradeSimulation,
         notificationsEnabled: config.notificationsEnabled,
       });
 
@@ -122,16 +131,44 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="auto-trade">Automated Trading</Label>
+                <Label htmlFor="auto-trade-cross">Auto-Trade: Cross-Exchange</Label>
                 <p className="text-xs text-muted-foreground">
-                  Automatically execute trades when opportunities are detected
+                  Automatically execute cross-exchange arbitrage trades above profit threshold
                 </p>
               </div>
               <Switch
-                id="auto-trade"
-                checked={config.autoTradeEnabled}
-                onCheckedChange={(checked) => setConfig({ ...config, autoTradeEnabled: checked })}
-                data-testid="switch-auto-trade"
+                id="auto-trade-cross"
+                checked={config.autoTradeCrossExchange}
+                onCheckedChange={(checked) => setConfig({ ...config, autoTradeCrossExchange: checked })}
+                data-testid="switch-auto-trade-cross-exchange"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="auto-trade-same">Auto-Trade: Same-Platform</Label>
+                <p className="text-xs text-muted-foreground">
+                  Automatically execute triangular arbitrage trades above profit threshold
+                </p>
+              </div>
+              <Switch
+                id="auto-trade-same"
+                checked={config.autoTradeSamePlatform}
+                onCheckedChange={(checked) => setConfig({ ...config, autoTradeSamePlatform: checked })}
+                data-testid="switch-auto-trade-same-platform"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="auto-trade-simulation">Auto-Trade in Simulation Mode</Label>
+                <p className="text-xs text-muted-foreground">
+                  Execute auto-trades as simulations instead of real trades
+                </p>
+              </div>
+              <Switch
+                id="auto-trade-simulation"
+                checked={config.autoTradeSimulation}
+                onCheckedChange={(checked) => setConfig({ ...config, autoTradeSimulation: checked })}
+                data-testid="switch-auto-trade-simulation"
               />
             </div>
             <div className="flex items-center justify-between">

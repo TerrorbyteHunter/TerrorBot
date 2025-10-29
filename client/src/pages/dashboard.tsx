@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { PriceCard } from "@/components/price-card";
 import { OpportunityCard } from "@/components/opportunity-card";
-import { Activity, Repeat, TrendingUp } from "lucide-react";
+import { Activity, Repeat, TrendingUp, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { PriceUpdate, OpportunityUpdate } from "@shared/schema";
+import { Badge } from "@/components/ui/badge";
+import type { PriceUpdate, OpportunityUpdate, Settings } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
@@ -14,6 +15,10 @@ export default function Dashboard() {
   const [prices, setPrices] = useState<PriceUpdate[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityUpdate[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
+  
+  const { data: settings } = useQuery<Settings>({
+    queryKey: ["/api/settings"],
+  });
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -77,13 +82,42 @@ export default function Dashboard() {
   const singleExchangeOpps = opportunities.filter(o => o.path.type === "triangular");
   const crossExchangeOpps = opportunities.filter(o => o.path.type === "cross-exchange");
 
+  const autoTradeActive = settings?.autoTradeCrossExchange || settings?.autoTradeSamePlatform;
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Trading Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
+        <div className="flex items-center gap-3 mb-2">
+          <h1 className="text-3xl font-bold">Trading Dashboard</h1>
+          {autoTradeActive && (
+            <Badge variant="default" className="bg-green-600 hover:bg-green-700 flex items-center gap-1" data-testid="badge-auto-trade-active">
+              <Zap className="h-3 w-3" />
+              Auto-Trade Active
+            </Badge>
+          )}
+        </div>
+        <p className="text-muted-foreground">
           Real-time price monitoring and arbitrage opportunities
         </p>
+        {autoTradeActive && (
+          <div className="flex gap-2 mt-2">
+            {settings.autoTradeCrossExchange && (
+              <Badge variant="outline" className="text-xs" data-testid="badge-cross-exchange-enabled">
+                Cross-Exchange Enabled
+              </Badge>
+            )}
+            {settings.autoTradeSamePlatform && (
+              <Badge variant="outline" className="text-xs" data-testid="badge-same-platform-enabled">
+                Same-Platform Enabled
+              </Badge>
+            )}
+            {settings.autoTradeSimulation && (
+              <Badge variant="secondary" className="text-xs" data-testid="badge-simulation-mode">
+                Simulation Mode
+              </Badge>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

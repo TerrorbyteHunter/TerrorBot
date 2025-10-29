@@ -150,7 +150,7 @@ function broadcastToClients(data: any) {
   });
 }
 
-async function executeTradeWithFallback(opportunityId: string | null, path: any, profitPercent: string, initialAmount: number) {
+async function executeTradeWithFallback(opportunityId: string | null, path: any, profitPercent: string, initialAmount: number, isSimulation = false) {
   const settings = await storage.getSettings();
   const notificationsEnabled = settings?.notificationsEnabled ?? true;
 
@@ -186,7 +186,7 @@ async function executeTradeWithFallback(opportunityId: string | null, path: any,
           title: "Trade Execution Issue",
           message: `Failed to execute on ${exchange}, attempting fallback`,
           severity: "warning",
-          metadata: { opportunityId: opportunityId || "", exchange, pair },
+          metadata: { opportunityId: opportunityId || "", exchange: exchange, pair: pair } as Record<string, any>,
         });
       }
     }
@@ -203,7 +203,7 @@ async function executeTradeWithFallback(opportunityId: string | null, path: any,
     finalAmount: finalAmount.toString(),
     profitPercent: profitPercent.toString(),
     profitAmount: profitAmount.toString(),
-    status: allStepsSucceeded ? "executed" : "failed",
+    status: isSimulation ? "simulated" : (allStepsSucceeded ? "executed" : "failed"),
     executionDetails,
   });
 
@@ -214,7 +214,7 @@ async function executeTradeWithFallback(opportunityId: string | null, path: any,
         title: "Trade Executed Successfully",
         message: `Profit: $${profitAmount.toFixed(2)} (${profitPercent}%)`,
         severity: "success",
-        metadata: { tradeId: trade.id, profitAmount, profitPercent },
+        metadata: { tradeId: trade.id, profitAmount: profitAmount, profitPercent: profitPercent } as Record<string, any>,
       });
     } else {
       await storage.addNotification({
@@ -222,7 +222,7 @@ async function executeTradeWithFallback(opportunityId: string | null, path: any,
         title: "Trade Execution Failed",
         message: "Unable to complete all trade steps",
         severity: "error",
-        metadata: { tradeId: trade.id },
+        metadata: { tradeId: trade.id } as Record<string, any>,
       });
     }
   }
@@ -609,13 +609,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
         broadcastToClients(oppUpdate);
 
-        if (settings.autoTradeEnabled && parseFloat(opp.profitPercent) >= parseFloat(settings.minProfitPercent)) {
-          const maxExposure = parseFloat(settings.maxExposurePerTrade as any);
+        const isCrossExchange = opportunity.arbitrageType === "cross-exchange";
+        const isSamePlatform = opportunity.arbitrageType === "triangular";
+        const shouldAutoTrade = (
+          (isCrossExchange && settings.autoTradeCrossExchange) ||
+          (isSamePlatform && settings.autoTradeSamePlatform)
+        ) && parseFloat(opp.profitPercent) >= parseFloat(settings.minProfitPercent);
+
+        if (shouldAutoTrade) {
+          const tradeAmount = settings.autoTradeSimulation 
+            ? parseFloat(settings.simulationAmount)
+            : parseFloat(settings.maxExposurePerTrade as any);
+          
           await executeTradeWithFallback(
             opp.id,
             opp.path,
             opp.profitPercent,
-            maxExposure
+            tradeAmount,
+            settings.autoTradeSimulation
           );
         }
       }
