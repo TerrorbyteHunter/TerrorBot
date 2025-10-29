@@ -80,6 +80,9 @@ export class MemStorage implements IStorage {
       enableTriangularArbitrage: true,
       enableCrossExchangeArbitrage: true,
       autoTradeEnabled: false,
+      autoTradeCrossExchange: false,
+      autoTradeSamePlatform: false,
+      autoTradeSimulation: false,
       notificationsEnabled: true,
       updatedAt: new Date(),
     };
@@ -109,6 +112,9 @@ export class MemStorage implements IStorage {
       enableTriangularArbitrage: insertSettings.enableTriangularArbitrage ?? true,
       enableCrossExchangeArbitrage: insertSettings.enableCrossExchangeArbitrage ?? true,
       autoTradeEnabled: insertSettings.autoTradeEnabled ?? false,
+      autoTradeCrossExchange: insertSettings.autoTradeCrossExchange ?? false,
+      autoTradeSamePlatform: insertSettings.autoTradeSamePlatform ?? false,
+      autoTradeSimulation: insertSettings.autoTradeSimulation ?? false,
       notificationsEnabled: insertSettings.notificationsEnabled ?? true,
       updatedAt: new Date(),
     };

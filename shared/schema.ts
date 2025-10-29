@@ -79,6 +79,9 @@ export const settings = pgTable("settings", {
   enableTriangularArbitrage: boolean("enable_triangular_arbitrage").notNull().default(true),
   enableCrossExchangeArbitrage: boolean("enable_cross_exchange_arbitrage").notNull().default(true),
   autoTradeEnabled: boolean("auto_trade_enabled").notNull().default(false),
+  autoTradeCrossExchange: boolean("auto_trade_cross_exchange").notNull().default(false),
+  autoTradeSamePlatform: boolean("auto_trade_same_platform").notNull().default(false),
+  autoTradeSimulation: boolean("auto_trade_simulation").notNull().default(false),
   notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
