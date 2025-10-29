@@ -10,3 +10,7 @@
 [x] 10. Migration from Replit Agent to Replit environment completed
 [x] 11. All items in progress tracker marked as done
 [x] 12. Project import successfully completed
+[x] 13. Added separate auto-trade toggles for cross-platform and same-platform arbitrage
+[x] 14. Implemented auto-trade simulation mode
+[x] 15. Added visual indicators on dashboard showing auto-trade status
+[x] 16. Fixed TypeScript errors and verified all features working
