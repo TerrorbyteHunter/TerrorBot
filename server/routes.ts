@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import type { PriceUpdate, OpportunityUpdate, TradeUpdate, NotificationUpdate, WalletUpdate, ExecutionDetails } from "@shared/schema";
+import { generateOpportunityFingerprint, shouldExecuteRepeatTrade } from "./utils";
 
 const clients = new Set<WebSocket>();
 
@@ -150,7 +151,15 @@ function broadcastToClients(data: any) {
   });
 }
 
-async function executeTradeWithFallback(opportunityId: string | null, path: any, profitPercent: string, initialAmount: number, isSimulation = false) {
+async function executeTradeWithFallback(
+  opportunityId: string | null, 
+  path: any, 
+  profitPercent: string, 
+  initialAmount: number, 
+  isSimulation = false,
+  fingerprint: string | null = null,
+  repeatIndex = 0
+) {
   const settings = await storage.getSettings();
   const notificationsEnabled = settings?.notificationsEnabled ?? true;
 
@@ -198,6 +207,8 @@ async function executeTradeWithFallback(opportunityId: string | null, path: any,
 
   const trade = await storage.addTrade({
     opportunityId,
+    opportunityFingerprint: fingerprint,
+    repeatIndex,
     path,
     initialAmount: initialAmount.toString(),
     finalAmount: finalAmount.toString(),
