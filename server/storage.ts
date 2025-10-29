@@ -6,6 +6,7 @@ import {
   type ExchangeConnection,
   type Wallet,
   type Notification,
+  type OpportunityExecutionStats,
   type InsertExchangePrice,
   type InsertArbitrageOpportunity,
   type InsertTrade,
@@ -13,6 +14,7 @@ import {
   type InsertExchangeConnection,
   type InsertWallet,
   type InsertNotification,
+  type InsertOpportunityExecutionStats,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -48,6 +50,10 @@ export interface IStorage {
   getAllNotifications(): Promise<Notification[]>;
   getUnreadNotifications(): Promise<Notification[]>;
   markNotificationAsRead(id: string): Promise<boolean>;
+  
+  getExecutionStats(fingerprint: string): Promise<OpportunityExecutionStats | undefined>;
+  upsertExecutionStats(stats: InsertOpportunityExecutionStats): Promise<OpportunityExecutionStats>;
+  resetExecutionStats(fingerprint: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -58,6 +64,7 @@ export class MemStorage implements IStorage {
   private exchangeConnections: Map<string, ExchangeConnection>;
   private wallets: Map<string, Wallet>;
   private notifications: Map<string, Notification>;
+  private executionStats: Map<string, OpportunityExecutionStats>;
 
   constructor() {
     this.prices = new Map();
@@ -66,6 +73,7 @@ export class MemStorage implements IStorage {
     this.exchangeConnections = new Map();
     this.wallets = new Map();
     this.notifications = new Map();
+    this.executionStats = new Map();
     
     this.settings = {
       id: randomUUID(),
@@ -83,6 +91,11 @@ export class MemStorage implements IStorage {
       autoTradeCrossExchange: false,
       autoTradeSamePlatform: false,
       autoTradeSimulation: false,
+      enableRepeatAutotrade: true,
+      maxSequentialExecutions: 10,
+      maxExecutionsPerOpportunity: 100,
+      maxExposurePerOpportunity: "50000",
+      minCooldownMs: 1000,
       notificationsEnabled: true,
       updatedAt: new Date(),
     };
@@ -115,6 +128,11 @@ export class MemStorage implements IStorage {
       autoTradeCrossExchange: insertSettings.autoTradeCrossExchange ?? false,
       autoTradeSamePlatform: insertSettings.autoTradeSamePlatform ?? false,
       autoTradeSimulation: insertSettings.autoTradeSimulation ?? false,
+      enableRepeatAutotrade: insertSettings.enableRepeatAutotrade ?? true,
+      maxSequentialExecutions: insertSettings.maxSequentialExecutions ?? 10,
+      maxExecutionsPerOpportunity: insertSettings.maxExecutionsPerOpportunity ?? 100,
+      maxExposurePerOpportunity: insertSettings.maxExposurePerOpportunity || "50000",
+      minCooldownMs: insertSettings.minCooldownMs ?? 1000,
       notificationsEnabled: insertSettings.notificationsEnabled ?? true,
       updatedAt: new Date(),
     };
@@ -177,6 +195,8 @@ export class MemStorage implements IStorage {
     const trade: Trade = {
       id,
       opportunityId: insertTrade.opportunityId ?? null,
+      opportunityFingerprint: insertTrade.opportunityFingerprint ?? null,
+      repeatIndex: insertTrade.repeatIndex ?? null,
       path,
       initialAmount: insertTrade.initialAmount,
       finalAmount: insertTrade.finalAmount,
@@ -350,6 +370,31 @@ export class MemStorage implements IStorage {
 
     this.notifications.set(id, { ...notification, isRead: true });
     return true;
+  }
+
+  async getExecutionStats(fingerprint: string): Promise<OpportunityExecutionStats | undefined> {
+    return this.executionStats.get(fingerprint);
+  }
+
+  async upsertExecutionStats(insertStats: InsertOpportunityExecutionStats): Promise<OpportunityExecutionStats> {
+    const existing = this.executionStats.get(insertStats.fingerprint);
+    
+    const stats: OpportunityExecutionStats = {
+      fingerprint: insertStats.fingerprint,
+      executionCount: insertStats.executionCount ?? (existing?.executionCount || 0),
+      cumulativeExposure: insertStats.cumulativeExposure ?? (existing?.cumulativeExposure || "0"),
+      lastExecutedAt: insertStats.lastExecutedAt ?? (existing?.lastExecutedAt || null),
+      sequentialExecutions: insertStats.sequentialExecutions ?? (existing?.sequentialExecutions || 0),
+      lastSequentialResetAt: insertStats.lastSequentialResetAt ?? (existing?.lastSequentialResetAt || null),
+      updatedAt: new Date(),
+    };
+    
+    this.executionStats.set(insertStats.fingerprint, stats);
+    return stats;
+  }
+
+  async resetExecutionStats(fingerprint: string): Promise<boolean> {
+    return this.executionStats.delete(fingerprint);
   }
 }
 
